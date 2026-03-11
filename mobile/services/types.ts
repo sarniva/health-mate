@@ -24,8 +24,8 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LoginResponse {
@@ -59,6 +59,7 @@ export interface HealthProfile {
 }
 
 export interface CreateHealthProfileRequest {
+  userId: string;
   age: number;
   gender: "male" | "female" | "other";
   height: number;
@@ -96,6 +97,7 @@ export interface WorkSession {
 }
 
 export interface CreateWorkSessionRequest {
+  userId: string;
   duration: number;
   workDuration: number;
   breaksScheduled: number;
@@ -106,75 +108,141 @@ export interface UpdateWorkSessionRequest {
   hydrationRemindersActedOn?: number;
 }
 
+export interface WorkSessionListResponse {
+  sessions: WorkSession[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+}
+
 // ==================== Activities ====================
 export interface HydrationLog {
-  id: string;
+  _id: string;
   userId: string;
   amount: number;      // ml
   date: string;
+  time?: string;
   notes?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface LogHydrationRequest {
+  userId: string;
   amount: number;
+  date: string;       // ISO date string (required by Zod)
+  time?: string;
+  notes?: string;
+}
+
+export interface HydrationListResponse {
+  logs: HydrationLog[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export type ExerciseType =
+  | "running"
+  | "walking"
+  | "cycling"
+  | "gym"
+  | "yoga"
+  | "swimming"
+  | "sports"
+  | "other";
+
+export interface ExerciseLog {
+  _id: string;
+  userId: string;
+  exerciseType: ExerciseType;
+  duration: number;       // minutes
+  intensity: "low" | "medium" | "high";
+  caloriesBurned?: number;
+  date?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LogExerciseRequest {
+  userId: string;
+  exerciseType: ExerciseType;
+  duration: number;
+  intensity: "low" | "medium" | "high";
+  caloriesBurned?: number;
   date?: string;
   notes?: string;
 }
 
-export interface ExerciseLog {
-  id: string;
-  userId: string;
-  exerciseType: string;
-  duration: number;
-  intensity: "low" | "medium" | "high";
-  calories: number;
-  createdAt: string;
+export interface ExerciseListResponse {
+  logs: ExerciseLog[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
-export interface LogExerciseRequest {
-  exerciseType: string;
-  duration: number;
-  intensity: "low" | "medium" | "high";
-  calories: number;
-}
+export type BreakType =
+  | "stretching"
+  | "breathing"
+  | "walking"
+  | "meditation"
+  | "other";
 
 export interface BreakLog {
-  id: string;
+  _id: string;
   userId: string;
   sessionId: string;
-  breakType: "stretch" | "walk" | "breathe" | "hydration";
-  duration: number;
+  breakType: BreakType;
+  duration: number;     // seconds
+  date?: string;
+  notes?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface LogBreakRequest {
+  userId: string;
   sessionId: string;
-  breakType: "stretch" | "walk" | "breathe" | "hydration";
-  duration: number;
+  breakType: BreakType;
+  duration: number;     // seconds
+  date?: string;
+  notes?: string;
+}
+
+export interface BreakListResponse {
+  logs: BreakLog[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 export interface SmokingLog {
-  id: string;
+  _id: string;
   userId: string;
   cigarettesSmoked: number;
   cravingLevel: number;
   date: string;
+  time?: string;
+  notes?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface LogSmokingRequest {
+  userId: string;
   cigarettesSmoked: number;
   cravingLevel: number;
-  date?: string;
+  date: string;
+  notes?: string;
 }
 
 // ==================== Gamification ====================
 export interface PointsResponse {
   totalPoints: number;
-  level: number;
-  xpToNextLevel: number;
-  currentLevelXp: number;
 }
 
 export interface Achievement {
@@ -185,39 +253,44 @@ export interface Achievement {
   unlockedAt: string;
 }
 
-export interface StreakResponse {
-  currentStreak: number;
-  longestStreak: number;
-  lastActivityDate: string;
+export interface AchievementsResponse {
+  count: number;
+  achievements: Achievement[];
 }
 
-export interface TierResponse {
-  tier: "bronze" | "silver" | "gold";
-  points: number;
-  nextTierThreshold: number;
+export interface Streak {
+  id: string;
+  type: string;
+  count: number;
+  lastDate: string;
+}
+
+export interface StreakResponse {
+  count: number;
+  streaks: Streak[];
 }
 
 // ==================== Leaderboard ====================
 export interface LeaderboardEntry {
+  _id: string;
   rank: number;
   userId: string;
-  name: string;
+  userName: string;
   avatar?: string;
-  points: number;
+  totalPoints: number;
   tier: string;
+}
+
+export interface LeaderboardPagination {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
 }
 
 export interface LeaderboardResponse {
-  entries: LeaderboardEntry[];
-  page: number;
-  totalPages: number;
-}
-
-export interface MyRankResponse {
-  rank: number;
-  totalUsers: number;
-  points: number;
-  tier: string;
+  leaderboard: LeaderboardEntry[];
+  pagination: LeaderboardPagination;
 }
 
 // ==================== Peer Challenges ====================

@@ -11,19 +11,52 @@ import { gamificationApi, healthProfileApi } from "@/services/api";
 import type {
   PointsResponse,
   StreakResponse,
-  TierResponse,
   Achievement,
   BMIResponse,
 } from "@/services/types";
+import { Gamification } from "@/constants/theme";
 import Card from "@/components/Card";
 import StatCard from "@/components/StatCard";
 import ProgressBar from "@/components/ProgressBar";
+
+/** Compute level info from total XP */
+function getLevelInfo(totalXp: number) {
+  const thresholds = Gamification.xpPerLevel;
+  let level = 1;
+  for (let i = 1; i < thresholds.length; i++) {
+    if (totalXp >= (thresholds[i] ?? 0)) {
+      level = i + 1;
+    } else {
+      break;
+    }
+  }
+  const currentThreshold = thresholds[level - 1] ?? 0;
+  const nextThreshold = thresholds[level] ?? currentThreshold + 1000;
+  const currentLevelXp = totalXp - currentThreshold;
+  const xpToNextLevel = nextThreshold - currentThreshold;
+  return { level, currentLevelXp, xpToNextLevel };
+}
+
+/** Compute tier from total XP */
+function getTier(totalXp: number) {
+  const { tiers } = Gamification;
+  if (totalXp >= tiers.gold.min) return { tier: "Gold", color: tiers.gold.color };
+  if (totalXp >= tiers.silver.min) return { tier: "Silver", color: tiers.silver.color };
+  return { tier: "Bronze", color: tiers.bronze.color };
+}
+
+/** Get next tier threshold */
+function getNextTierThreshold(totalXp: number): number {
+  const { tiers } = Gamification;
+  if (totalXp < tiers.silver.min) return tiers.silver.min;
+  if (totalXp < tiers.gold.min) return tiers.gold.min;
+  return tiers.gold.min; // Already gold
+}
 
 export default function StatsScreen() {
   const { user } = useAuth();
   const [points, setPoints] = useState<PointsResponse | null>(null);
   const [streak, setStreak] = useState<StreakResponse | null>(null);
-  const [tier, setTier] = useState<TierResponse | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [bmi, setBmi] = useState<BMIResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,17 +70,16 @@ export default function StatsScreen() {
   async function fetchAll() {
     setIsLoading(true);
     try {
-      const [pRes, sRes, tRes, aRes, bRes] = await Promise.allSettled([
+      const [pRes, sRes, aRes, bRes] = await Promise.allSettled([
         gamificationApi.getPoints(),
         gamificationApi.getStreaks(),
-        gamificationApi.getTier(),
         gamificationApi.getAchievements(),
         healthProfileApi.getBMI(),
       ]);
       if (pRes.status === "fulfilled") setPoints(pRes.value.data);
       if (sRes.status === "fulfilled") setStreak(sRes.value.data);
-      if (tRes.status === "fulfilled") setTier(tRes.value.data);
-      if (aRes.status === "fulfilled") setAchievements(aRes.value.data);
+      if (aRes.status === "fulfilled")
+        setAchievements(aRes.value.data.achievements || []);
       if (bRes.status === "fulfilled") setBmi(bRes.value.data);
     } catch {
       // silently fail
@@ -64,11 +96,18 @@ export default function StatsScreen() {
     );
   }
 
-  const tierColors: Record<string, string> = {
-    bronze: "#CD7F32",
-    silver: "#C0C0C0",
-    gold: "#FFD700",
-  };
+  // Derived values
+  const totalXp = points?.totalPoints ?? 0;
+  const levelInfo = getLevelInfo(totalXp);
+  const tierInfo = getTier(totalXp);
+  const nextTierThreshold = getNextTierThreshold(totalXp);
+
+  // Best streak and current streak from streaks array
+  const currentStreak =
+    streak && streak.streaks.length > 0
+      ? Math.max(...streak.streaks.map((s) => s.count))
+      : 0;
+  const longestStreak = currentStreak; // API only tracks active streaks
 
   function getBMIColor(bmiVal: number): string {
     if (bmiVal < 18.5) return "#3B82F6";
@@ -105,40 +144,32 @@ export default function StatsScreen() {
           <Text className="text-white text-xl font-bold">
             {user?.name || "User"}
           </Text>
-          {tier && (
-            <View
-              className="flex-row items-center mt-2 px-4 py-1.5 rounded-full"
-              style={{
-                backgroundColor: `${tierColors[tier.tier] || "#10B981"}20`,
-              }}
+          <View
+            className="flex-row items-center mt-2 px-4 py-1.5 rounded-full"
+            style={{ backgroundColor: `${tierInfo.color}20` }}
+          >
+            <Ionicons name="shield" size={14} color={tierInfo.color} />
+            <Text
+              className="text-sm font-bold ml-1.5"
+              style={{ color: tierInfo.color }}
             >
-              <Ionicons
-                name="shield"
-                size={14}
-                color={tierColors[tier.tier] || "#10B981"}
-              />
-              <Text
-                className="text-sm font-bold ml-1.5"
-                style={{ color: tierColors[tier.tier] || "#10B981" }}
-              >
-                {tier.tier.charAt(0).toUpperCase() + tier.tier.slice(1)} Tier
-              </Text>
-            </View>
-          )}
+              {tierInfo.tier} Tier
+            </Text>
+          </View>
         </Card>
 
         {/* Stat cards grid */}
         <View className="flex-row gap-3 mb-3">
           <StatCard
             label="Total XP"
-            value={points?.totalPoints?.toLocaleString() ?? "0"}
+            value={totalXp.toLocaleString()}
             icon="star"
             iconColor="#A78BFA"
             className="flex-1"
           />
           <StatCard
             label="Level"
-            value={points?.level ?? 1}
+            value={levelInfo.level}
             icon="shield-checkmark"
             iconColor="#10B981"
             className="flex-1"
@@ -147,14 +178,14 @@ export default function StatsScreen() {
         <View className="flex-row gap-3 mb-5">
           <StatCard
             label="Current Streak"
-            value={`${streak?.currentStreak ?? 0} days`}
+            value={`${currentStreak} days`}
             icon="flame"
             iconColor="#FB923C"
             className="flex-1"
           />
           <StatCard
             label="Best Streak"
-            value={`${streak?.longestStreak ?? 0} days`}
+            value={`${longestStreak} days`}
             icon="ribbon"
             iconColor="#FBBF24"
             className="flex-1"
@@ -168,30 +199,28 @@ export default function StatsScreen() {
               Level Progress
             </Text>
             <ProgressBar
-              progress={points.currentLevelXp / (points.xpToNextLevel || 1)}
+              progress={levelInfo.currentLevelXp / (levelInfo.xpToNextLevel || 1)}
               color="#A78BFA"
               height={10}
               showPercentage
-              sublabel={`${points.currentLevelXp} / ${points.xpToNextLevel} XP to Level ${(points.level || 0) + 1}`}
+              sublabel={`${levelInfo.currentLevelXp} / ${levelInfo.xpToNextLevel} XP to Level ${levelInfo.level + 1}`}
             />
           </Card>
         )}
 
         {/* Tier progress */}
-        {tier && (
-          <Card className="mb-5">
-            <Text className="text-white text-base font-semibold mb-3">
-              Tier Progress
-            </Text>
-            <ProgressBar
-              progress={tier.points / (tier.nextTierThreshold || 1)}
-              color={tierColors[tier.tier] || "#10B981"}
-              height={10}
-              showPercentage
-              sublabel={`${tier.points} / ${tier.nextTierThreshold} pts to next tier`}
-            />
-          </Card>
-        )}
+        <Card className="mb-5">
+          <Text className="text-white text-base font-semibold mb-3">
+            Tier Progress
+          </Text>
+          <ProgressBar
+            progress={totalXp / (nextTierThreshold || 1)}
+            color={tierInfo.color}
+            height={10}
+            showPercentage
+            sublabel={`${totalXp} / ${nextTierThreshold} pts to next tier`}
+          />
+        </Card>
 
         {/* BMI card */}
         {bmi && (

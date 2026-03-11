@@ -1,7 +1,8 @@
 /**
  * Activities tab - Hydration, Exercise, Breaks, Breathing
+ * All tabs are fully wired to the backend API.
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,20 +10,26 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "@/services/auth";
 import { activitiesApi } from "@/services/api";
-import type { HydrationLog } from "@/services/types";
+import type {
+  HydrationLog,
+  ExerciseLog,
+  ExerciseType,
+  BreakLog,
+  BreakType,
+} from "@/services/types";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
 import ProgressBar from "@/components/ProgressBar";
 
 type ActivityTab = "hydration" | "exercise" | "breathing" | "breaks";
 
-const DAILY_WATER_GOAL = 2500; // ml
+const DAILY_WATER_GOAL = 2000; // ml (matches backend HEALTH_GOALS.DAILY_WATER_INTAKE_ML)
 
 export default function ActivitiesScreen() {
   const [activeTab, setActiveTab] = useState<ActivityTab>("hydration");
@@ -78,8 +85,11 @@ export default function ActivitiesScreen() {
   );
 }
 
-/** ---- Hydration Tab ---- */
+// ─────────────────────────────────────────────────────────
+// HYDRATION TAB
+// ─────────────────────────────────────────────────────────
 function HydrationTab() {
+  const { user } = useAuth();
   const [amount, setAmount] = useState("");
   const [isLogging, setIsLogging] = useState(false);
   const [logs, setLogs] = useState<HydrationLog[]>([]);
@@ -93,8 +103,8 @@ function HydrationTab() {
 
   async function fetchLogs() {
     try {
-      const res = await activitiesApi.getHydration({ limit: 20 });
-      const allLogs = res.data;
+      const res = await activitiesApi.getHydration({ limit: 50 });
+      const allLogs = res.data.logs || [];
       setLogs(allLogs);
       // Sum today's intake
       const today = new Date().toDateString();
@@ -108,9 +118,14 @@ function HydrationTab() {
   }
 
   async function logWater(ml: number) {
+    if (!user?.id) return;
     setIsLogging(true);
     try {
-      await activitiesApi.logHydration({ amount: ml });
+      await activitiesApi.logHydration({
+        userId: user.id,
+        amount: ml,
+        date: new Date().toISOString(),
+      });
       setTotalToday((prev) => prev + ml);
       setAmount("");
       fetchLogs();
@@ -122,23 +137,33 @@ function HydrationTab() {
   }
 
   const quickAmounts = [150, 250, 500, 750];
+  const goalReached = totalToday >= DAILY_WATER_GOAL;
 
   return (
     <ScrollView contentContainerClassName="px-5 pb-8">
       {/* Daily progress */}
       <Card variant="elevated" className="mb-5">
         <View className="items-center mb-3">
-          <Ionicons name="water" size={32} color="#3B82F6" />
+          <Ionicons
+            name="water"
+            size={32}
+            color={goalReached ? "#22C55E" : "#3B82F6"}
+          />
           <Text className="text-3xl font-extrabold text-white mt-2">
             {totalToday} ml
           </Text>
           <Text className="text-slate-400 text-sm">
             of {DAILY_WATER_GOAL} ml daily goal
           </Text>
+          {goalReached && (
+            <Text className="text-emerald-400 text-xs font-semibold mt-1">
+              Daily goal reached! +20 bonus XP
+            </Text>
+          )}
         </View>
         <ProgressBar
-          progress={totalToday / DAILY_WATER_GOAL}
-          color="#3B82F6"
+          progress={Math.min(totalToday / DAILY_WATER_GOAL, 1)}
+          color={goalReached ? "#22C55E" : "#3B82F6"}
           height={10}
           showPercentage
         />
@@ -199,7 +224,7 @@ function HydrationTab() {
       ) : (
         logs.slice(0, 10).map((log) => (
           <View
-            key={log.id}
+            key={log._id}
             className="flex-row items-center justify-between bg-slate-800 rounded-xl px-4 py-3 mb-2"
           >
             <View className="flex-row items-center">
@@ -209,7 +234,7 @@ function HydrationTab() {
               </Text>
             </View>
             <Text className="text-slate-500 text-xs">
-              {new Date(log.createdAt).toLocaleTimeString([], {
+              {new Date(log.time || log.createdAt).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
@@ -221,32 +246,73 @@ function HydrationTab() {
   );
 }
 
-/** ---- Exercise Tab ---- */
+// ─────────────────────────────────────────────────────────
+// EXERCISE TAB
+// ─────────────────────────────────────────────────────────
+const EXERCISES: {
+  type: ExerciseType;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  defaultDuration: number;
+  defaultCalories: number;
+  intensity: "low" | "medium" | "high";
+  color: string;
+}[] = [
+  { type: "walking", label: "Walking", icon: "walk-outline", defaultDuration: 15, defaultCalories: 60, intensity: "low", color: "#22C55E" },
+  { type: "running", label: "Running", icon: "speedometer-outline", defaultDuration: 20, defaultCalories: 200, intensity: "high", color: "#EF4444" },
+  { type: "yoga", label: "Yoga", icon: "leaf-outline", defaultDuration: 20, defaultCalories: 80, intensity: "medium", color: "#A78BFA" },
+  { type: "cycling", label: "Cycling", icon: "bicycle-outline", defaultDuration: 20, defaultCalories: 150, intensity: "medium", color: "#F59E0B" },
+  { type: "swimming", label: "Swimming", icon: "water-outline", defaultDuration: 30, defaultCalories: 250, intensity: "high", color: "#3B82F6" },
+  { type: "gym", label: "Gym", icon: "barbell-outline", defaultDuration: 30, defaultCalories: 200, intensity: "high", color: "#FB923C" },
+  { type: "sports", label: "Sports", icon: "football-outline", defaultDuration: 30, defaultCalories: 200, intensity: "high", color: "#10B981" },
+  { type: "other", label: "Other", icon: "fitness-outline", defaultDuration: 15, defaultCalories: 80, intensity: "medium", color: "#94A3B8" },
+];
+
 function ExerciseTab() {
+  const { user } = useAuth();
   const [isLogging, setIsLogging] = useState(false);
+  const [logs, setLogs] = useState<ExerciseLog[]>([]);
+  const [customDuration, setCustomDuration] = useState<Record<string, string>>({});
 
-  const exercises = [
-    { type: "Walking", icon: "walk-outline" as const, duration: 15, calories: 60, intensity: "low" as const },
-    { type: "Running", icon: "bicycle-outline" as const, duration: 20, calories: 200, intensity: "high" as const },
-    { type: "Stretching", icon: "body-outline" as const, duration: 10, calories: 30, intensity: "low" as const },
-    { type: "Yoga", icon: "leaf-outline" as const, duration: 20, calories: 80, intensity: "medium" as const },
-    { type: "Push-ups", icon: "fitness-outline" as const, duration: 10, calories: 100, intensity: "high" as const },
-    { type: "Squats", icon: "barbell-outline" as const, duration: 10, calories: 80, intensity: "medium" as const },
-  ];
+  useFocusEffect(
+    useCallback(() => {
+      fetchLogs();
+    }, [])
+  );
 
-  async function logExercise(exercise: (typeof exercises)[0]) {
+  async function fetchLogs() {
+    try {
+      const res = await activitiesApi.getExercise({ limit: 20 });
+      setLogs(res.data.logs || []);
+    } catch {
+      // silently fail
+    }
+  }
+
+  async function logExercise(exercise: (typeof EXERCISES)[0]) {
+    if (!user?.id) return;
     setIsLogging(true);
+    const duration = parseInt(customDuration[exercise.type] || "", 10) || exercise.defaultDuration;
+    // Scale calories linearly with custom duration
+    const calories = Math.round(
+      (duration / exercise.defaultDuration) * exercise.defaultCalories
+    );
     try {
       await activitiesApi.logExercise({
+        userId: user.id,
         exerciseType: exercise.type,
-        duration: exercise.duration,
+        duration,
         intensity: exercise.intensity,
-        calories: exercise.calories,
+        caloriesBurned: calories,
       });
       Alert.alert(
         "Logged!",
-        `${exercise.type} - ${exercise.duration} min, ~${exercise.calories} cal`
+        `${exercise.label} — ${duration} min, ~${calories} cal burned\n+${
+          exercise.intensity === "high" ? 75 : exercise.intensity === "medium" ? 50 : 30
+        } XP`
       );
+      setCustomDuration((prev) => ({ ...prev, [exercise.type]: "" }));
+      fetchLogs();
     } catch {
       Alert.alert("Error", "Failed to log exercise");
     } finally {
@@ -254,45 +320,166 @@ function ExerciseTab() {
     }
   }
 
+  // Today's summary
+  const today = new Date().toDateString();
+  const todayLogs = logs.filter(
+    (l) => new Date(l.date || l.createdAt).toDateString() === today
+  );
+  const todayDuration = todayLogs.reduce((sum, l) => sum + l.duration, 0);
+  const todayCalories = todayLogs.reduce(
+    (sum, l) => sum + (l.caloriesBurned ?? 0),
+    0
+  );
+
   return (
     <ScrollView contentContainerClassName="px-5 pb-8">
+      {/* Today's stats */}
+      <View className="flex-row gap-3 mb-5">
+        <Card variant="elevated" className="flex-1 items-center py-4">
+          <Ionicons name="time-outline" size={22} color="#A78BFA" />
+          <Text className="text-white text-xl font-bold mt-1">
+            {todayDuration}
+          </Text>
+          <Text className="text-slate-400 text-xs">min today</Text>
+        </Card>
+        <Card variant="elevated" className="flex-1 items-center py-4">
+          <Ionicons name="flame-outline" size={22} color="#FB923C" />
+          <Text className="text-white text-xl font-bold mt-1">
+            {todayCalories}
+          </Text>
+          <Text className="text-slate-400 text-xs">cal burned</Text>
+        </Card>
+        <Card variant="elevated" className="flex-1 items-center py-4">
+          <Ionicons name="checkmark-circle-outline" size={22} color="#22C55E" />
+          <Text className="text-white text-xl font-bold mt-1">
+            {todayLogs.length}
+          </Text>
+          <Text className="text-slate-400 text-xs">sessions</Text>
+        </Card>
+      </View>
+
+      {/* Exercise cards */}
       <Text className="text-white text-base font-semibold mb-3">
-        Quick Log Exercise
+        Log Exercise
       </Text>
-      <View className="gap-3">
-        {exercises.map((ex) => (
-          <TouchableOpacity
+      <View className="gap-3 mb-6">
+        {EXERCISES.map((ex) => (
+          <View
             key={ex.type}
-            className="flex-row items-center bg-slate-800 rounded-xl p-4 border border-slate-700"
-            onPress={() => logExercise(ex)}
-            disabled={isLogging}
-            activeOpacity={0.7}
+            className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden"
           >
-            <View className="w-12 h-12 rounded-xl bg-emerald-500/15 items-center justify-center mr-4">
-              <Ionicons name={ex.icon} size={24} color="#10B981" />
+            <TouchableOpacity
+              className="flex-row items-center p-4"
+              onPress={() => logExercise(ex)}
+              disabled={isLogging}
+              activeOpacity={0.7}
+            >
+              <View
+                className="w-12 h-12 rounded-xl items-center justify-center mr-4"
+                style={{ backgroundColor: `${ex.color}20` }}
+              >
+                <Ionicons name={ex.icon} size={24} color={ex.color} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-white text-base font-semibold">
+                  {ex.label}
+                </Text>
+                <Text className="text-slate-400 text-sm">
+                  {customDuration[ex.type] || ex.defaultDuration} min &middot; ~
+                  {Math.round(
+                    ((parseInt(customDuration[ex.type] || "", 10) ||
+                      ex.defaultDuration) /
+                      ex.defaultDuration) *
+                      ex.defaultCalories
+                  )}{" "}
+                  cal &middot; {ex.intensity}
+                </Text>
+              </View>
+              <Ionicons name="add-circle" size={28} color={ex.color} />
+            </TouchableOpacity>
+            {/* Custom duration input */}
+            <View className="flex-row items-center px-4 pb-3">
+              <TextInput
+                className="flex-1 text-white text-sm bg-slate-700 rounded-lg px-3 py-1.5"
+                placeholder={`Duration (default ${ex.defaultDuration} min)`}
+                placeholderTextColor="#64748B"
+                value={customDuration[ex.type] || ""}
+                onChangeText={(text) =>
+                  setCustomDuration((prev) => ({
+                    ...prev,
+                    [ex.type]: text.replace(/[^0-9]/g, ""),
+                  }))
+                }
+                keyboardType="number-pad"
+              />
             </View>
-            <View className="flex-1">
-              <Text className="text-white text-base font-semibold">
-                {ex.type}
-              </Text>
-              <Text className="text-slate-400 text-sm">
-                {ex.duration} min &middot; ~{ex.calories} cal &middot;{" "}
-                {ex.intensity}
-              </Text>
-            </View>
-            <Ionicons name="add-circle-outline" size={24} color="#10B981" />
-          </TouchableOpacity>
+          </View>
         ))}
       </View>
+
+      {/* Recent exercise history */}
+      <Text className="text-white text-base font-semibold mb-3">
+        Recent History
+      </Text>
+      {logs.length === 0 ? (
+        <Text className="text-slate-500 text-sm text-center py-4">
+          No exercises logged yet
+        </Text>
+      ) : (
+        logs.slice(0, 8).map((log) => {
+          const ex = EXERCISES.find((e) => e.type === log.exerciseType);
+          return (
+            <View
+              key={log._id}
+              className="flex-row items-center justify-between bg-slate-800 rounded-xl px-4 py-3 mb-2"
+            >
+              <View className="flex-row items-center flex-1">
+                <Ionicons
+                  name={ex?.icon || "fitness-outline"}
+                  size={20}
+                  color={ex?.color || "#94A3B8"}
+                />
+                <View className="ml-3 flex-1">
+                  <Text className="text-white text-sm font-medium">
+                    {ex?.label || log.exerciseType}
+                  </Text>
+                  <Text className="text-slate-400 text-xs">
+                    {log.duration} min &middot;{" "}
+                    {log.caloriesBurned ?? 0} cal &middot; {log.intensity}
+                  </Text>
+                </View>
+              </View>
+              <Text className="text-slate-500 text-xs">
+                {new Date(log.date || log.createdAt).toLocaleDateString([], {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Text>
+            </View>
+          );
+        })
+      )}
     </ScrollView>
   );
 }
 
-/** ---- Breathing Tab ---- */
+// ─────────────────────────────────────────────────────────
+// BREATHING TAB (client-side only, unchanged)
+// ─────────────────────────────────────────────────────────
 function BreathingTab() {
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<"inhale" | "hold" | "exhale">("inhale");
   const [countdown, setCountdown] = useState(4);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   function startBreathing() {
     setIsActive(true);
@@ -302,7 +489,7 @@ function BreathingTab() {
     let currentPhase: "inhale" | "hold" | "exhale" = "inhale";
     let count = 4;
 
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       count--;
       if (count <= 0) {
         if (currentPhase === "inhale") {
@@ -321,16 +508,20 @@ function BreathingTab() {
     }, 1000);
 
     // Auto-stop after 2 minutes
-    setTimeout(() => {
-      clearInterval(interval);
-      setIsActive(false);
-      setPhase("inhale");
-      setCountdown(4);
+    timeoutRef.current = setTimeout(() => {
+      stopBreathing();
       Alert.alert("Well done!", "You completed a breathing exercise.");
     }, 120000);
+  }
 
-    // Store interval for cleanup
-    return () => clearInterval(interval);
+  function stopBreathing() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    intervalRef.current = null;
+    timeoutRef.current = null;
+    setIsActive(false);
+    setPhase("inhale");
+    setCountdown(4);
   }
 
   const phaseColors = {
@@ -392,9 +583,7 @@ function BreathingTab() {
         variant={isActive ? "danger" : "primary"}
         onPress={() => {
           if (isActive) {
-            setIsActive(false);
-            setPhase("inhale");
-            setCountdown(4);
+            stopBreathing();
           } else {
             startBreathing();
           }
@@ -412,71 +601,218 @@ function BreathingTab() {
   );
 }
 
-/** ---- Breaks Tab ---- */
-function BreaksTab() {
-  const breakTypes = [
-    {
-      type: "stretch" as const,
-      label: "Stretch Break",
-      desc: "Stand up and stretch for 2 minutes",
-      icon: "body-outline" as const,
-      color: "#FB923C",
-      duration: 2,
-    },
-    {
-      type: "walk" as const,
-      label: "Walk Break",
-      desc: "Take a short 5-minute walk",
-      icon: "walk-outline" as const,
-      color: "#10B981",
-      duration: 5,
-    },
-    {
-      type: "breathe" as const,
-      label: "Breathing Break",
-      desc: "Deep breathing for 1 minute",
-      icon: "leaf-outline" as const,
-      color: "#A78BFA",
-      duration: 1,
-    },
-    {
-      type: "hydration" as const,
-      label: "Hydration Break",
-      desc: "Drink a glass of water",
-      icon: "water-outline" as const,
-      color: "#3B82F6",
-      duration: 1,
-    },
-  ];
+// ─────────────────────────────────────────────────────────
+// BREAKS TAB
+// ─────────────────────────────────────────────────────────
+const BREAK_TYPES: {
+  type: BreakType;
+  label: string;
+  desc: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  durationSecs: number;
+}[] = [
+  {
+    type: "stretching",
+    label: "Stretch Break",
+    desc: "Stand up and stretch for 2 minutes",
+    icon: "body-outline",
+    color: "#FB923C",
+    durationSecs: 120,
+  },
+  {
+    type: "walking",
+    label: "Walk Break",
+    desc: "Take a short 5-minute walk",
+    icon: "walk-outline",
+    color: "#10B981",
+    durationSecs: 300,
+  },
+  {
+    type: "breathing",
+    label: "Breathing Break",
+    desc: "Deep breathing for 1 minute",
+    icon: "leaf-outline",
+    color: "#A78BFA",
+    durationSecs: 60,
+  },
+  {
+    type: "meditation",
+    label: "Meditation Break",
+    desc: "Quiet your mind for 3 minutes",
+    icon: "flower-outline",
+    color: "#3B82F6",
+    durationSecs: 180,
+  },
+  {
+    type: "other",
+    label: "Quick Break",
+    desc: "Any micro-break for 1 minute",
+    icon: "cafe-outline",
+    color: "#F59E0B",
+    durationSecs: 60,
+  },
+];
 
-  async function logBreak(breakType: (typeof breakTypes)[0]) {
+function BreaksTab() {
+  const { user } = useAuth();
+  const [logs, setLogs] = useState<BreakLog[]>([]);
+  const [activeBreak, setActiveBreak] = useState<BreakType | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const [isLogging, setIsLogging] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchLogs();
+      return () => {
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      };
+    }, [])
+  );
+
+  async function fetchLogs() {
     try {
-      await activitiesApi.logBreak({
-        sessionId: "manual",
-        breakType: breakType.type,
-        duration: breakType.duration,
-      });
-      Alert.alert("Break logged!", `${breakType.label} - ${breakType.duration} min`);
+      const res = await activitiesApi.getBreaks({ limit: 20 });
+      setLogs(res.data.logs || []);
     } catch {
-      Alert.alert("Error", "Failed to log break");
+      // silently fail
     }
   }
 
+  function startBreakTimer(breakDef: (typeof BREAK_TYPES)[0]) {
+    setActiveBreak(breakDef.type);
+    setCountdown(breakDef.durationSecs);
+
+    intervalRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
+          finishBreak(breakDef);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  function cancelBreakTimer() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    setActiveBreak(null);
+    setCountdown(0);
+  }
+
+  async function finishBreak(breakDef: (typeof BREAK_TYPES)[0]) {
+    if (!user?.id) return;
+    setActiveBreak(null);
+    setIsLogging(true);
+    try {
+      await activitiesApi.logBreak({
+        userId: user.id,
+        sessionId: "standalone",
+        breakType: breakDef.type,
+        duration: breakDef.durationSecs,
+      });
+      Alert.alert(
+        "Break Complete!",
+        `${breakDef.label} logged — +15 XP earned!`
+      );
+      fetchLogs();
+    } catch {
+      Alert.alert("Error", "Failed to log break");
+    } finally {
+      setIsLogging(false);
+    }
+  }
+
+  // Format seconds as mm:ss
+  function formatTime(secs: number): string {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  // Today's break count
+  const today = new Date().toDateString();
+  const todayBreaks = logs.filter(
+    (l) => new Date(l.date || l.createdAt).toDateString() === today
+  ).length;
+
   return (
     <ScrollView contentContainerClassName="px-5 pb-8">
+      {/* Today's summary */}
+      <Card variant="elevated" className="mb-5 items-center py-4">
+        <Ionicons name="cafe" size={24} color="#10B981" />
+        <Text className="text-white text-xl font-bold mt-1">
+          {todayBreaks}
+        </Text>
+        <Text className="text-slate-400 text-sm">breaks taken today</Text>
+      </Card>
+
+      {/* Active break timer */}
+      {activeBreak && (
+        <Card
+          variant="elevated"
+          className="mb-5 items-center py-6"
+        >
+          {(() => {
+            const def = BREAK_TYPES.find((b) => b.type === activeBreak);
+            return (
+              <>
+                <View
+                  className="w-24 h-24 rounded-full items-center justify-center mb-3"
+                  style={{
+                    backgroundColor: `${def?.color || "#10B981"}20`,
+                    borderWidth: 3,
+                    borderColor: def?.color || "#10B981",
+                  }}
+                >
+                  <Text
+                    className="text-3xl font-extrabold"
+                    style={{ color: def?.color || "#10B981" }}
+                  >
+                    {formatTime(countdown)}
+                  </Text>
+                </View>
+                <Text className="text-white text-lg font-bold">
+                  {def?.label || "Break"}
+                </Text>
+                <Text className="text-slate-400 text-sm mt-1 mb-4">
+                  Take your time, you earned this!
+                </Text>
+                <Button
+                  title="Skip & Log"
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => {
+                    cancelBreakTimer();
+                    if (def) finishBreak(def);
+                  }}
+                />
+              </>
+            );
+          })()}
+        </Card>
+      )}
+
+      {/* Break type cards */}
       <Text className="text-white text-base font-semibold mb-3">
         Take a Micro-Break
       </Text>
-      <Text className="text-slate-400 text-sm mb-5">
-        Regular breaks boost productivity and reduce strain
+      <Text className="text-slate-400 text-sm mb-4">
+        Start a timer and earn XP when complete
       </Text>
-      <View className="gap-3">
-        {breakTypes.map((b) => (
+      <View className="gap-3 mb-6">
+        {BREAK_TYPES.map((b) => (
           <TouchableOpacity
             key={b.type}
             className="flex-row items-center bg-slate-800 rounded-xl p-4 border border-slate-700"
-            onPress={() => logBreak(b)}
+            onPress={() => startBreakTimer(b)}
+            disabled={!!activeBreak || isLogging}
             activeOpacity={0.7}
+            style={{ opacity: activeBreak ? 0.5 : 1 }}
           >
             <View
               className="w-14 h-14 rounded-2xl items-center justify-center mr-4"
@@ -492,12 +828,49 @@ function BreaksTab() {
             </View>
             <View className="bg-slate-700 px-2.5 py-1 rounded-lg">
               <Text className="text-slate-300 text-xs font-medium">
-                {b.duration}m
+                {formatTime(b.durationSecs)}
               </Text>
             </View>
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Recent break history */}
+      <Text className="text-white text-base font-semibold mb-3">
+        Recent Breaks
+      </Text>
+      {logs.length === 0 ? (
+        <Text className="text-slate-500 text-sm text-center py-4">
+          No breaks logged yet
+        </Text>
+      ) : (
+        logs.slice(0, 8).map((log) => {
+          const def = BREAK_TYPES.find((b) => b.type === log.breakType);
+          return (
+            <View
+              key={log._id}
+              className="flex-row items-center justify-between bg-slate-800 rounded-xl px-4 py-3 mb-2"
+            >
+              <View className="flex-row items-center">
+                <Ionicons
+                  name={def?.icon || "cafe-outline"}
+                  size={18}
+                  color={def?.color || "#94A3B8"}
+                />
+                <Text className="text-white text-sm ml-3 font-medium">
+                  {def?.label || log.breakType}
+                </Text>
+              </View>
+              <Text className="text-slate-500 text-xs">
+                {new Date(log.date || log.createdAt).toLocaleDateString([], {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Text>
+            </View>
+          );
+        })
+      )}
     </ScrollView>
   );
 }

@@ -20,20 +20,22 @@ import type {
   WorkSession,
   CreateWorkSessionRequest,
   UpdateWorkSessionRequest,
+  WorkSessionListResponse,
   LogHydrationRequest,
   HydrationLog,
+  HydrationListResponse,
   LogExerciseRequest,
   ExerciseLog,
+  ExerciseListResponse,
   LogBreakRequest,
   BreakLog,
+  BreakListResponse,
   LogSmokingRequest,
   SmokingLog,
   PointsResponse,
-  Achievement,
+  AchievementsResponse,
   StreakResponse,
-  TierResponse,
   LeaderboardResponse,
-  MyRankResponse,
   PeerChallenge,
   CreatePeerChallengeRequest,
   UpdatePeerChallengeRequest,
@@ -42,7 +44,7 @@ import type {
   AuthTokens,
 } from "./types";
 
-const BASE_URL = "http://localhost:3000/api/v1";
+const BASE_URL = "http://10.10.10.180:3000/api/v1";
 
 /**
  * In-memory token store
@@ -229,7 +231,7 @@ export const workSessionsApi = {
   },
 
   list() {
-    return request<ApiResponse<WorkSession[]>>("/work-sessions");
+    return request<ApiResponse<WorkSessionListResponse>>("/work-sessions");
   },
 
   get(id: string) {
@@ -252,6 +254,7 @@ export const workSessionsApi = {
 
 // ==================== Activities API ====================
 export const activitiesApi = {
+  // --- Hydration ---
   logHydration(data: LogHydrationRequest) {
     return request<ApiResponse<HydrationLog>>("/activities/hydration", {
       method: "POST",
@@ -263,9 +266,10 @@ export const activitiesApi = {
     const query = params
       ? `?page=${params.page || 1}&limit=${params.limit || 20}`
       : "";
-    return request<ApiResponse<HydrationLog[]>>(`/activities/hydration${query}`);
+    return request<ApiResponse<HydrationListResponse>>(`/activities/hydration${query}`);
   },
 
+  // --- Exercise ---
   logExercise(data: LogExerciseRequest) {
     return request<ApiResponse<ExerciseLog>>("/activities/exercise", {
       method: "POST",
@@ -273,6 +277,14 @@ export const activitiesApi = {
     });
   },
 
+  getExercise(params?: PaginatedParams) {
+    const query = params
+      ? `?page=${params.page || 1}&limit=${params.limit || 20}`
+      : "";
+    return request<ApiResponse<ExerciseListResponse>>(`/activities/exercise${query}`);
+  },
+
+  // --- Breaks ---
   logBreak(data: LogBreakRequest) {
     return request<ApiResponse<BreakLog>>("/activities/breaks", {
       method: "POST",
@@ -280,6 +292,14 @@ export const activitiesApi = {
     });
   },
 
+  getBreaks(params?: PaginatedParams) {
+    const query = params
+      ? `?page=${params.page || 1}&limit=${params.limit || 20}`
+      : "";
+    return request<ApiResponse<BreakListResponse>>(`/activities/breaks${query}`);
+  },
+
+  // --- Smoking ---
   logSmoking(data: LogSmokingRequest) {
     return request<ApiResponse<SmokingLog>>("/activities/smoking", {
       method: "POST",
@@ -295,15 +315,11 @@ export const gamificationApi = {
   },
 
   getAchievements() {
-    return request<ApiResponse<Achievement[]>>("/gamification/achievements");
+    return request<ApiResponse<AchievementsResponse>>("/gamification/achievements");
   },
 
   getStreaks() {
     return request<ApiResponse<StreakResponse>>("/gamification/streaks");
-  },
-
-  getTier() {
-    return request<ApiResponse<TierResponse>>("/gamification/tier");
   },
 };
 
@@ -319,10 +335,6 @@ export const leaderboardApi = {
   getByTier(tier: string, params?: PaginatedParams) {
     const query = `?tier=${tier}&page=${params?.page || 1}&limit=${params?.limit || 20}`;
     return request<ApiResponse<LeaderboardResponse>>(`/leaderboards/tier${query}`);
-  },
-
-  getMyRank() {
-    return request<ApiResponse<MyRankResponse>>("/leaderboards/me");
   },
 
   getLocal(groupId: string, params?: PaginatedParams) {

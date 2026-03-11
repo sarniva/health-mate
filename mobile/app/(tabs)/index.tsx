@@ -15,7 +15,8 @@ import { useFocusEffect, router, type Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/services/auth";
 import { gamificationApi, workSessionsApi } from "@/services/api";
-import type { PointsResponse, StreakResponse, TierResponse } from "@/services/types";
+import type { PointsResponse, StreakResponse } from "@/services/types";
+import { Gamification } from "@/constants/theme";
 import Card from "@/components/Card";
 import StatCard from "@/components/StatCard";
 import ProgressBar from "@/components/ProgressBar";
@@ -23,11 +24,36 @@ import Button from "@/components/Button";
 
 type TimerState = "idle" | "running" | "paused" | "break";
 
+/** Compute level info from total XP using Gamification.xpPerLevel thresholds */
+function getLevelInfo(totalXp: number) {
+  const thresholds = Gamification.xpPerLevel;
+  let level = 1;
+  for (let i = 1; i < thresholds.length; i++) {
+    if (totalXp >= (thresholds[i] ?? 0)) {
+      level = i + 1;
+    } else {
+      break;
+    }
+  }
+  const currentThreshold = thresholds[level - 1] ?? 0;
+  const nextThreshold = thresholds[level] ?? currentThreshold + 1000;
+  const currentLevelXp = totalXp - currentThreshold;
+  const xpToNextLevel = nextThreshold - currentThreshold;
+  return { level, currentLevelXp, xpToNextLevel };
+}
+
+/** Compute tier from total XP */
+function getTier(totalXp: number) {
+  const { tiers } = Gamification;
+  if (totalXp >= tiers.gold.min) return { tier: "Gold", color: tiers.gold.color };
+  if (totalXp >= tiers.silver.min) return { tier: "Silver", color: tiers.silver.color };
+  return { tier: "Bronze", color: tiers.bronze.color };
+}
+
 export default function DashboardScreen() {
   const { user } = useAuth();
   const [points, setPoints] = useState<PointsResponse | null>(null);
   const [streak, setStreak] = useState<StreakResponse | null>(null);
-  const [tier, setTier] = useState<TierResponse | null>(null);
 
   // Timer state
   const [timerState, setTimerState] = useState<TimerState>("idle");
@@ -45,18 +71,27 @@ export default function DashboardScreen() {
 
   async function fetchStats() {
     try {
-      const [pointsRes, streakRes, tierRes] = await Promise.allSettled([
+      const [pointsRes, streakRes] = await Promise.allSettled([
         gamificationApi.getPoints(),
         gamificationApi.getStreaks(),
-        gamificationApi.getTier(),
       ]);
       if (pointsRes.status === "fulfilled") setPoints(pointsRes.value.data);
       if (streakRes.status === "fulfilled") setStreak(streakRes.value.data);
-      if (tierRes.status === "fulfilled") setTier(tierRes.value.data);
     } catch {
       // Stats are non-critical, silently fail
     }
   }
+
+  // Derived values from points
+  const totalXp = points?.totalPoints ?? 0;
+  const levelInfo = getLevelInfo(totalXp);
+  const tierInfo = getTier(totalXp);
+
+  // Best streak from streaks array
+  const currentStreak =
+    streak && streak.streaks.length > 0
+      ? Math.max(...streak.streaks.map((s) => s.count))
+      : 0;
 
   /** Timer controls */
   function startTimer() {
@@ -64,14 +99,17 @@ export default function DashboardScreen() {
     setSecondsLeft(workMinutes * 60);
 
     // Create work session on backend
-    workSessionsApi
-      .create({
-        duration: workMinutes,
-        workDuration: workMinutes,
-        breaksScheduled: Math.floor(workMinutes / 25),
-      })
-      .then((res) => setSessionId(res.data.id))
-      .catch(() => {});
+    if (user?.id) {
+      workSessionsApi
+        .create({
+          userId: user.id,
+          duration: workMinutes,
+          workDuration: workMinutes,
+          breaksScheduled: Math.floor(workMinutes / 25),
+        })
+        .then((res) => setSessionId(res.data.id))
+        .catch(() => {});
+    }
 
     intervalRef.current = setInterval(() => {
       setSecondsLeft((prev) => {
@@ -162,33 +200,17 @@ export default function DashboardScreen() {
             </Text>
           </View>
           <View className="flex-row items-center gap-3">
-            {tier && (
-              <View
-                className="px-3 py-1 rounded-full"
-                style={{
-                  backgroundColor:
-                    tier.tier === "gold"
-                      ? "#FFD70020"
-                      : tier.tier === "silver"
-                      ? "#C0C0C020"
-                      : "#CD7F3220",
-                }}
+            <View
+              className="px-3 py-1 rounded-full"
+              style={{ backgroundColor: `${tierInfo.color}20` }}
+            >
+              <Text
+                className="text-xs font-bold"
+                style={{ color: tierInfo.color }}
               >
-                <Text
-                  className="text-xs font-bold"
-                  style={{
-                    color:
-                      tier.tier === "gold"
-                        ? "#FFD700"
-                        : tier.tier === "silver"
-                        ? "#C0C0C0"
-                        : "#CD7F32",
-                  }}
-                >
-                  {tier.tier.toUpperCase()}
-                </Text>
-              </View>
-            )}
+                {tierInfo.tier.toUpperCase()}
+              </Text>
+            </View>
             <TouchableOpacity
               className="w-10 h-10 rounded-full bg-slate-800 items-center justify-center"
               onPress={() => router.push("/(tabs)/settings" as Href)}
@@ -202,21 +224,21 @@ export default function DashboardScreen() {
         <View className="flex-row gap-3 mb-6">
           <StatCard
             label="XP"
-            value={points?.totalPoints ?? 0}
+            value={totalXp}
             icon="star"
             iconColor="#A78BFA"
             className="flex-1"
           />
           <StatCard
             label="Streak"
-            value={`${streak?.currentStreak ?? 0}d`}
+            value={`${currentStreak}d`}
             icon="flame"
             iconColor="#FB923C"
             className="flex-1"
           />
           <StatCard
             label="Level"
-            value={points?.level ?? 1}
+            value={levelInfo.level}
             icon="shield-checkmark"
             iconColor="#10B981"
             className="flex-1"
@@ -226,9 +248,9 @@ export default function DashboardScreen() {
         {/* XP Progress */}
         {points && (
           <ProgressBar
-            progress={points.currentLevelXp / (points.xpToNextLevel || 1)}
-            label={`Level ${points.level}`}
-            sublabel={`${points.currentLevelXp} / ${points.xpToNextLevel} XP to next level`}
+            progress={levelInfo.currentLevelXp / (levelInfo.xpToNextLevel || 1)}
+            label={`Level ${levelInfo.level}`}
+            sublabel={`${levelInfo.currentLevelXp} / ${levelInfo.xpToNextLevel} XP to next level`}
             color="#A78BFA"
             showPercentage
             className="mb-6"

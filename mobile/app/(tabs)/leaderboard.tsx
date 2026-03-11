@@ -1,5 +1,5 @@
 /**
- * Leaderboard tab - Global, Tier-based, and My Rank
+ * Leaderboard tab - Global and Tier-based rankings
  */
 import { useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from "react-native";
@@ -7,15 +7,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { leaderboardApi } from "@/services/api";
-import type { LeaderboardEntry, MyRankResponse } from "@/services/types";
-import Card from "@/components/Card";
+import type { LeaderboardEntry } from "@/services/types";
 
 type LeaderboardTab = "global" | "bronze" | "silver" | "gold";
 
 export default function LeaderboardScreen() {
   const [activeTab, setActiveTab] = useState<LeaderboardTab>("global");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [myRank, setMyRank] = useState<MyRankResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useFocusEffect(
@@ -27,18 +25,13 @@ export default function LeaderboardScreen() {
   async function fetchData() {
     setIsLoading(true);
     try {
-      const [rankRes] = await Promise.allSettled([
-        leaderboardApi.getMyRank(),
-      ]);
-      if (rankRes.status === "fulfilled") setMyRank(rankRes.value.data);
-
       let leaderboardRes;
       if (activeTab === "global") {
         leaderboardRes = await leaderboardApi.getGlobal({ limit: 50 });
       } else {
         leaderboardRes = await leaderboardApi.getByTier(activeTab, { limit: 50 });
       }
-      setEntries(leaderboardRes.data.entries || []);
+      setEntries(leaderboardRes.data.leaderboard || []);
     } catch {
       // silently fail
     } finally {
@@ -68,43 +61,6 @@ export default function LeaderboardScreen() {
           Compete and climb the ranks
         </Text>
       </View>
-
-      {/* My Rank card */}
-      {myRank && (
-        <Card variant="elevated" className="mx-5 mb-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center">
-              <View
-                className="w-12 h-12 rounded-full items-center justify-center mr-3"
-                style={{
-                  backgroundColor: `${tierColors[myRank.tier] || "#10B981"}20`,
-                }}
-              >
-                <Text
-                  className="text-xl font-extrabold"
-                  style={{ color: tierColors[myRank.tier] || "#10B981" }}
-                >
-                  #{myRank.rank}
-                </Text>
-              </View>
-              <View>
-                <Text className="text-white text-base font-semibold">
-                  Your Rank
-                </Text>
-                <Text className="text-slate-400 text-sm">
-                  {myRank.points} pts &middot;{" "}
-                  <Text style={{ color: tierColors[myRank.tier] }}>
-                    {myRank.tier.charAt(0).toUpperCase() + myRank.tier.slice(1)}
-                  </Text>
-                </Text>
-              </View>
-            </View>
-            <Text className="text-slate-500 text-xs">
-              of {myRank.totalUsers} users
-            </Text>
-          </View>
-        </Card>
-      )}
 
       {/* Tier tabs */}
       <View className="flex-row mx-5 mb-4 bg-slate-800 rounded-xl p-1">
@@ -149,7 +105,7 @@ export default function LeaderboardScreen() {
       ) : (
         <FlatList
           data={entries}
-          keyExtractor={(item) => `${item.rank}-${item.userId}`}
+          keyExtractor={(item) => item._id || `${item.rank}-${item.userId}`}
           contentContainerClassName="px-5 pb-8"
           renderItem={({ item }) => {
             const rankIcon = getRankIcon(item.rank);
@@ -173,19 +129,19 @@ export default function LeaderboardScreen() {
                 {/* Avatar placeholder */}
                 <View className="w-10 h-10 rounded-full bg-slate-700 items-center justify-center mr-3">
                   <Text className="text-slate-300 text-sm font-bold">
-                    {item.name.charAt(0).toUpperCase()}
+                    {(item.userName || "?").charAt(0).toUpperCase()}
                   </Text>
                 </View>
 
                 {/* Name & tier */}
                 <View className="flex-1">
                   <Text className="text-white text-base font-medium">
-                    {item.name}
+                    {item.userName}
                   </Text>
                   <Text
                     className="text-xs"
                     style={{
-                      color: tierColors[item.tier.toLowerCase()] || "#94A3B8",
+                      color: tierColors[item.tier?.toLowerCase()] || "#94A3B8",
                     }}
                   >
                     {item.tier}
@@ -195,7 +151,7 @@ export default function LeaderboardScreen() {
                 {/* Points */}
                 <View className="items-end">
                   <Text className="text-white text-base font-bold">
-                    {item.points.toLocaleString()}
+                    {item.totalPoints.toLocaleString()}
                   </Text>
                   <Text className="text-slate-500 text-xs">pts</Text>
                 </View>
