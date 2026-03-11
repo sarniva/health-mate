@@ -1,263 +1,254 @@
 # Agent Guidelines for Health-Mate
 
-This document provides guidelines for AI agents working on the Health-Mate "Wellness Nudge" project.
-
 ## Project Overview
 
-Health-Mate is a gamified wellness platform that:
-- Tracks user health metrics (BMI, lifestyle habits)
-- Reminds users for micro-breaks, hydration, and exercise
-- Features global leaderboards (Bronze, Silver, Gold tiers) and local peer challenges
-- Uses work timers with gamification mechanics
+Health-Mate is a gamified wellness platform with two sub-projects in a monorepo:
 
-**Architecture:** Monorepo with `backend/` (Node.js/Express) and `mobile/` (frontend - empty, to be built)
+- **`backend/`** — Node.js/Express REST API (Bun runtime, TypeScript, MongoDB)
+- **`mobile/`** — React Native / Expo mobile app (TypeScript, NativeWind/Tailwind)
+
+Core features: work session timers (Pomodoro-style), activity logging (hydration, exercise, breaks, smoking), gamification (XP points, achievements, streaks, tiers), global/peer leaderboards, and scheduled reminders.
+
+**Auth:** JWT + bcrypt (self-managed; Clerk was removed). Tokens are extracted server-side from `Authorization: Bearer <token>` headers — never include `userId` in request bodies.
+
+**API base URL:** `http://localhost:3000/api/v1`  
+**Tiers:** Bronze (0–499 pts) → Silver (500–1999) → Gold (2000–4999) → Platinum (5000+)
 
 ---
 
 ## Build, Lint & Test Commands
 
-### Backend Commands
+### Backend (`backend/`)
 
 ```bash
-# Install dependencies
-bun install
-
-# Development (hot reload)
-bun run dev
-
-# Production start
-bun start
-
-# Build
-bun run build
+bun install              # Install dependencies
+bun run dev              # Development with hot reload (--hot)
+bun start                # Production start
+bun run build            # Installs dependencies (no compile step — Bun runs TS directly)
 ```
 
-**Note:** Bun is the JavaScript runtime used (faster than Node.js). All commands must use `bun` instead of `npm`.
+### Running Tests (Backend)
 
-### Running Tests
-- **Current Status:** No test framework configured yet
-- **Recommended Setup:** Use Bun's built-in test runner or Vitest for BDD-style tests
-- When tests are added, structure as: `src/**/__tests__/**/*.test.ts` or `src/**/*.test.ts`
-- Run single test: `bun test src/path/to/file.test.ts`
-- Run all tests: `bun test`
+No test framework is configured yet. When added, use Bun's built-in runner:
 
-### Code Quality
-- **Linting:** No ESLint config yet - recommend adding when building features
-- **Formatting:** No Prettier config - recommend Prettier with 2-space indentation
-- **Type Checking:** Built into Bun - strict TypeScript already enabled in `tsconfig.json`
+```bash
+bun test                                        # Run all tests
+bun test src/path/to/file.test.ts               # Run a single test file
+bun test --watch                                # Watch mode
+bun test src/controllers/authController.test.ts # Example single test
+```
+
+Place tests at `src/**/__tests__/**/*.test.ts` or `src/**/*.test.ts`.
+
+### Mobile (`mobile/`)
+
+```bash
+bun install              # Install dependencies (bun preferred over npm)
+expo start               # Start Expo dev server
+expo start --android     # Android emulator
+expo start --ios         # iOS simulator
+expo lint                # ESLint (eslint-config-expo/flat)
+```
+
+No Prettier config exists yet. ESLint uses `eslint-config-expo` flat config (`eslint.config.js`).
 
 ---
 
-## Code Style Guidelines
+## Repository Structure
 
-### TypeScript & Strict Mode
+```
+health-mate/
+├── backend/
+│   ├── index.ts                  # Server entry point
+│   ├── src/
+│   │   ├── app.ts                # Express app, middleware, route wiring
+│   │   ├── config/database.ts    # MongoDB connection
+│   │   ├── controllers/          # Route handlers (one file per domain)
+│   │   ├── middleware/
+│   │   │   ├── authMiddleware.ts      # requireAuth, optionalAuth, requireOwnership
+│   │   │   ├── errorMiddleware.ts     # Global error + 404 handlers
+│   │   │   └── validationMiddleware.ts # validateRequest/Query/Params (Zod)
+│   │   ├── models/               # Mongoose schemas + interfaces (PascalCase.ts)
+│   │   ├── routes/               # Express routers (camelCase.ts)
+│   │   ├── scripts/              # One-off migration/seed scripts
+│   │   └── utils/
+│   │       ├── errorHandler.ts   # APIError classes + sendSuccessResponse/sendErrorResponse
+│   │       ├── gameEngine.ts     # Points, achievements, streaks, leaderboard logic
+│   │       ├── jwtUtils.ts       # Token generation/verification
+│   │       └── reminderEngine.ts # node-schedule cron jobs
+│   └── tsconfig.json
+└── mobile/
+    ├── app/                      # Expo Router file-based routing
+    │   ├── (auth)/               # Login/signup screens
+    │   ├── (onboarding)/         # Health profile setup
+    │   └── (tabs)/               # Main tab navigator (Dashboard, Activities, Leaderboard, Stats, Settings)
+    ├── components/               # Shared UI components (Card, Button, StatCard, ProgressBar…)
+    ├── services/
+    │   ├── api.ts                # Typed API client with auto token-refresh
+    │   ├── auth.tsx              # AuthProvider context
+    │   └── types.ts              # All request/response TypeScript types
+    └── tailwind.config.js
+```
 
-✅ **Enabled (tsconfig.json):**
-- `strict: true` - All strict type checking enabled
-- `noUncheckedIndexedAccess: true` - Prevent unsafe index access
-- `noImplicitOverride: true` - Force override keyword when overriding methods
-- `noFallthroughCasesInSwitch: true` - Prevent switch case fallthrough
+---
 
-✅ **Relaxed for development:**
-- `noUnusedLocals: false` - Allow unused variables (enable when code matures)
-- `noUnusedParameters: false` - Allow unused params (enable when code matures)
+## Code Style — Backend (TypeScript / Express)
 
-### Imports & Module System
+### TypeScript Strict Mode (`tsconfig.json`)
+
+```
+strict: true, noUncheckedIndexedAccess: true,
+noImplicitOverride: true, noFallthroughCasesInSwitch: true
+noUnusedLocals/Parameters: false (relaxed during development)
+```
+
+Never use `any` except in middleware params for compatibility.
+
+### Imports
 
 ```typescript
-// ✅ CORRECT: ESNext modules with named imports
-import express, { type Request, type Response } from "express";
-import mongoose, { Schema, type Document } from "mongoose";
+// Named imports; type-only with 'type' keyword
+import express from "express";
+import { type Request, type Response, type NextFunction } from "express";
+import type { IUser } from "../models/User";
 
-// ✅ Import types explicitly with 'type' keyword
-import type { IUser } from "./models/User";
-
-// ❌ AVOID: Default imports for utilities
-import utils from "./utils"; // Don't do this
-
-// ❌ AVOID: Wildcard imports
-import * as all from "./helpers";
+// NO wildcard imports: import * as x from "..."
+// NO default utility imports: import utils from "./utils"
 ```
 
-**Rule:** Use named imports when possible. Use `type` keyword for type-only imports.
+### Naming Conventions
 
-### File Structure & Naming
+| Thing | Convention | Example |
+|---|---|---|
+| Model/Interface files | `PascalCase.ts` | `HealthProfile.ts` |
+| Utility/route/controller files | `camelCase.ts` | `gameEngine.ts`, `authRoutes.ts` |
+| Functions | `camelCase` | `calculateBMI()`, `sendSuccessResponse()` |
+| Interfaces | `PascalCase` prefixed `I` | `IUser`, `IHealthProfile` |
+| Constants | `UPPER_SNAKE_CASE` | `POINTS_CONFIG`, `TIER_THRESHOLDS` |
+| DB fields | `camelCase` | `clerkId`, `createdAt` |
 
-```
-backend/
-├── src/
-│   ├── app.ts              # Express app initialization
-│   ├── config/             # Configuration files
-│   │   └── database.ts     # MongoDB connection
-│   ├── models/             # Mongoose schemas & types
-│   │   └── User.ts         # Schema + Interface
-│   ├── controllers/        # Route handlers
-│   │   └── userController.ts
-│   ├── routes/             # Route definitions
-│   │   └── userRoutes.ts
-│   ├── middleware/         # Express middleware
-│   │   └── authMiddleware.ts
-│   ├── utils/              # Utility functions
-│   │   └── validators.ts
-│   └── scripts/            # One-off scripts (migrations, seeds)
-├── index.ts                # Server entry point
-└── tsconfig.json
-```
-
-**Naming Conventions:**
-- **Files:** `camelCase.ts` for utilities, `PascalCase.ts` for models/schemas
-- **Functions:** `camelCase` - e.g., `calculateBMI()`, `validateEmail()`
-- **Classes/Interfaces:** `PascalCase` - e.g., `UserController`, `IUser`
-- **Constants:** `UPPER_SNAKE_CASE` - e.g., `DEFAULT_PORT`, `BMI_CATEGORIES`
-- **Database fields:** `camelCase` - e.g., `clerkId`, `createdAt`
-
-### Type Definitions & Interfaces
+### Models Pattern
 
 ```typescript
-// ✅ CORRECT: Define interface before schema
 export interface IUser extends Document {
-  clerkId: string;
-  name: string;
+  clerkId: string;          // Always extend Document
   email: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date;          // timestamps: true handles these
 }
-
-// ✅ Generic Schema typing
-const UserSchema = new Schema<IUser>({ /* ... */ });
-
-// ✅ Export both types and models
+const UserSchema = new Schema<IUser>({ ... }, { timestamps: true });
 export const User = mongoose.model("User", UserSchema);
-export type UserDocument = IUser;
 ```
 
-### Formatting & Spacing
+Always use `{ timestamps: true }`, schema generics `new Schema<IModel>()`, `trim: true` on strings, and `lowercase: true` on emails.
+
+### Controllers Pattern
 
 ```typescript
-// ✅ 2-space indentation (Bun default)
-const config = {
-  key: "value",
-  nested: {
-    prop: "data"
-  }
-};
-
-// ✅ Space around operators
-const bmi = weight / (height * height);
-
-// ✅ No trailing semicolons optional but consistent
-// ✅ String literals: use double quotes by convention
-const message = "User created successfully";
+// Use asyncHandler or express-async-errors for automatic error propagation
+export async function createProfile(req: Request, res: Response): Promise<void> {
+  const userId = req.userId!;           // Extracted by requireAuth middleware
+  const data = req.validatedBody!;      // Set by validateRequest middleware
+  const profile = await HealthProfile.create({ userId, ...data });
+  sendSuccessResponse(res, 201, profile, "Profile created");
+  // On error: throw new APIError / NotFoundError / etc. — middleware catches it
+}
 ```
 
-### Error Handling & Validation
+### Error Handling
 
 ```typescript
-// ✅ CORRECT: Explicit error handling with try-catch
-try {
-  await mongoose.connect(mongoUri);
-  console.log("DB connected successfully");
-} catch (error) {
-  console.error("DB connection failure:", error);
-  process.exit(1);
-}
+// Use custom error classes — never send raw errors
+throw new NotFoundError("Profile not found");       // 404
+throw new UnauthorizedError("Token required");      // 401
+throw new ValidationError("Bad input", { field: ["msg"] }); // 400
+throw new ConflictError("Already exists");          // 409
 
-// ✅ Validate env vars at startup
-if (!process.env.DB_URI) {
-  throw new Error("DB_URI is not set");
-}
-
-// ✅ Type-guard error messages
-const errorMessage = error instanceof Error 
-  ? error.message 
-  : "Unknown error occurred";
+// Always type-guard unknown errors
+const msg = error instanceof Error ? error.message : "Unknown error";
 ```
+
+### Validation
+
+All `POST`/`PUT` routes must use `validateRequest(zodSchema)` middleware. Use `z.coerce.date()` (not `z.date()`) for date fields from JSON. Make `userId` optional in schemas — controllers extract it from JWT.
 
 ### Environment Variables
 
-- **Required for backend:** `PORT`, `DB_URI`
-- **File:** `.env` (git-ignored, don't commit credentials)
-- **Access:** `process.env.KEY`
-- **Validation:** Check at module import/startup, fail fast with descriptive errors
+Required: `PORT`, `DB_URI`, `JWT_SECRET`, `CORS_ORIGIN`  
+All secrets in `.env` (git-ignored). Validate at startup — fail fast.
 
-### Database (MongoDB + Mongoose)
+---
 
-```typescript
-// ✅ Always use schema generics
-const schema = new Schema<IUser>({ /* ... */ });
+## Code Style — Mobile (React Native / Expo)
 
-// ✅ Timestamps helper
-{ timestamps: true } // Auto-adds createdAt, updatedAt
+### Stack
 
-// ✅ Unique + sparse for optional fields
-{ type: String, unique: true, sparse: true }
+React Native 0.81, Expo SDK 54, Expo Router v6 (file-based routing), NativeWind v4 (Tailwind CSS for RN), React 19.
 
-// ✅ Trim strings by default
-{ type: String, trim: true }
+### Component Conventions
 
-// ✅ Lowercase emails
-{ type: String, lowercase: true }
+```tsx
+// Named exports for screens; default export only for Expo Router layouts
+export default function DashboardScreen() { ... }
+
+// Prop types inline for small components, interface for reused ones
+function QuickAction({ icon, label, onPress }: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) { ... }
 ```
 
-### Comments & Documentation
+### Styling
 
-```typescript
-// ✅ Use JSDoc for functions
-/**
- * Calculate BMI from weight and height
- * @param weight - Weight in kg
- * @param height - Height in meters
- * @returns BMI value
- */
-export function calculateBMI(weight: number, height: number): number {
-  return weight / (height * height);
-}
+Use NativeWind `className` prop (Tailwind classes). Design system uses slate-900 background, emerald-500 for primary actions, and slate-800 for cards. Avoid inline `style` except for dynamic values (e.g. tier-specific colors).
 
-// ✅ Inline comments for complex logic
-// Bun uses TypeScript directly, no transpilation needed
+### API Calls
+
+All API calls go through `services/api.ts`. Import domain namespaces:
+
+```tsx
+import { gamificationApi, workSessionsApi } from "@/services/api";
+import type { PointsResponse } from "@/services/types";
 ```
+
+Use `Promise.allSettled` for parallel non-critical fetches. Wrap in `try/catch`; non-critical failures may be silently ignored. The API client handles 401 → token refresh automatically.
+
+### Path Aliases
+
+Use `@/` for project root imports: `import Card from "@/components/Card"`.
+
+---
+
+## API Conventions
+
+- **Base path:** `/api/v1`
+- **Auth:** `Authorization: Bearer <token>` header on all protected routes
+- **Success response:** `{ success: true, message: string, data: T }`
+- **Error response:** `{ success: false, error: { message, errors? } }`
+- **Date fields:** Always ISO 8601 strings (e.g. `"2026-03-11T00:00:00.000Z"`)
+- **Do not** send `userId` in request bodies — it is extracted from the JWT
+
+Key route groups: `/auth`, `/health-profile`, `/work-sessions`, `/activities/{hydration|exercise|breaks|smoking}`, `/gamification/{points|achievements|streaks|tier}`, `/leaderboards`, `/peer-challenges`, `/reminders`
 
 ---
 
 ## Development Workflow
 
-### Before Making Changes
-1. Create a feature branch: `git checkout -b feature/feature-name`
-2. Write code following guidelines above
-3. Test locally: `bun run dev`
-4. Commit with clear messages: `feat: add user registration` or `fix: email validation`
-
-### Adding New Features
-- Create models in `src/models/`
-- Create controllers in `src/controllers/`
-- Create routes in `src/routes/`
-- Wire routes in `src/app.ts`
-
-### Key Decisions to Make (Later)
-- Testing framework (Bun's native or Vitest)
-- Error handling middleware (centralized error class)
-- Validation library (Zod, Joi, or manual)
-- Authentication (Clerk already partially integrated)
-- Logging library (Winston, Pino)
-
----
-
-## Technology Stack
-
-- **Runtime:** Bun v1.3.5+ (ESNext, all-in-one JavaScript runtime)
-- **Server:** Express 5.2.1
-- **Database:** MongoDB + Mongoose 9.3.0
-- **Language:** TypeScript 5+ (strict mode)
-- **Auth:** Clerk (via `clerkId` in User schema)
+1. Branch: `git checkout -b feature/feature-name`
+2. Backend changes: add model → controller → route → wire in `app.ts`
+3. Mobile changes: add screen in `app/` or component in `components/`
+4. Verify: `bun run dev` (backend), `expo start` (mobile)
+5. Commit: `feat: add X` / `fix: Y` / `refactor: Z`
 
 ---
 
 ## Notes for Agents
 
-1. **Bun, not Node:** All commands use `bun`, not `npm` or `yarn`
-2. **Type safety first:** Leverage strict TypeScript - design types before implementation
-3. **Modular structure:** Keep models, controllers, routes separated
-4. **Error handling:** Always wrap async operations in try-catch, validate early
-5. **Environment:** Secrets go in `.env`, validate at startup
-6. **Mobile frontend:** Empty directory - will be built after backend is feature-complete
-7. **No custom rules yet:** Follow standard TypeScript + Express best practices
+1. **Bun, not npm/node** — all backend commands use `bun`
+2. **JWT auth** — Clerk is gone; use `req.userId` set by `requireAuth` middleware
+3. **Zod v4** — `z.coerce.date()` for dates, schemas for all POST/PUT bodies
+4. **Mongoose 9.3** — async pre-save hooks must NOT call `next()` param
+5. **Express-async-errors** is installed — thrown errors propagate automatically
+6. **Mobile is active** — `mobile/` has a functioning Expo app with screens, services, and components; it is not empty
+7. **No test suite yet** — when writing tests use Bun's built-in runner
+8. **Postman collection** — `Health-Mate-API-Updated.postman_collection.json` has all 38+ endpoints pre-configured
