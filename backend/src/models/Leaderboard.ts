@@ -295,13 +295,13 @@ export const CreatePeerChallengeSchema = z.object({
   challengeType: z.enum([
     "hydration",
     "exercise",
-    "breaks",
-    "smoke_free",
-    "overall",
-  ]),
-  startDate: z.date(),
-  endDate: z.date(),
-});
+     "breaks",
+     "smoke_free",
+     "overall",
+   ]),
+   startDate: z.coerce.date(),
+   endDate: z.coerce.date(),
+ });
 
 /**
  * Zod validation schema for PeerChallenge updates

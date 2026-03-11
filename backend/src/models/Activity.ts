@@ -52,12 +52,12 @@ export const HydrationLog = mongoose.model(
  */
 export const CreateHydrationLogSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  date: z.date(),
+  date: z.coerce.date(),
   amount: z
     .number()
     .min(1, "Amount must be at least 1 ml")
     .max(5000, "Amount must be at most 5000 ml"),
-  time: z.date().optional(),
+  time: z.coerce.date().optional(),
   notes: z.string().optional(),
 });
 
@@ -122,15 +122,15 @@ export const CreateBreakLogSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   sessionId: z.string().min(1, "Session ID is required"),
   breakType: z.enum([
-    "stretching",
-    "breathing",
-    "walking",
-    "meditation",
-    "other",
-  ]),
-  duration: z.number().min(1, "Duration must be at least 1 second"),
-  date: z.date().optional(),
-  notes: z.string().optional(),
+     "stretching",
+     "breathing",
+     "walking",
+     "meditation",
+     "other",
+   ]),
+   duration: z.number().min(1, "Duration must be at least 1 second"),
+   date: z.coerce.date().optional(),
+   notes: z.string().optional(),
 });
 
 export const UpdateBreakLogSchema =
@@ -193,12 +193,12 @@ export const SmokingLog = mongoose.model("SmokingLog", SmokingLogSchema);
  */
 export const CreateSmokingLogSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  date: z.date(),
+  date: z.coerce.date(),
   cigarettesSmoked: z
     .number()
     .min(0, "Cigarettes smoked must be non-negative")
     .max(50, "Cigarettes smoked must be at most 50"),
-  time: z.date().optional(),
+  time: z.coerce.date().optional(),
   cravingLevel: z
     .number()
     .min(0, "Craving level must be between 0 and 10")
@@ -287,7 +287,7 @@ export const Exercise = mongoose.model("Exercise", ExerciseSchema);
  */
 export const CreateExerciseSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
-  date: z.date().optional(),
+  date: z.coerce.date().optional(),
   exerciseType: z.enum([
     "running",
     "walking",

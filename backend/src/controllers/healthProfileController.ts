@@ -48,7 +48,7 @@ class HealthProfileController {
       await profile.save();
 
       // Create/update global leaderboard entry
-      const user = await User.findOne({ clerkId: userId });
+      const user = await User.findById(userId);
       let leaderboard = await GlobalLeaderboard.findOne({ userId });
 
       if (!leaderboard) {
