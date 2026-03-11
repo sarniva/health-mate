@@ -294,17 +294,42 @@ export interface LeaderboardResponse {
 }
 
 // ==================== Peer Challenges ====================
+export type ChallengeType = "hydration" | "exercise" | "breaks" | "smoke_free" | "overall";
+
 export interface PeerChallenge {
-  id: string;
+  _id: string;
   groupId: string;
   groupName: string;
   creatorId: string;
   members: string[];
-  challengeType: string;
+  challengeType: ChallengeType;
   startDate: string;
   endDate: string;
-  status: "active" | "completed" | "cancelled";
+  isActive: boolean;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface PeerChallengeListResponse {
+  count: number;
+  challenges: PeerChallenge[];
+}
+
+export interface PeerChallengeDetailsResponse {
+  challenge: PeerChallenge;
+  leaderboard: LocalLeaderboardEntry[];
+}
+
+export interface LocalLeaderboardEntry {
+  _id: string;
+  userId: string;
+  groupId: string;
+  userName: string;
+  totalPoints: number;
+  rank: number;
+  sessionsCompleted: number;
+  breaksTaken: number;
+  exerciseCount: number;
 }
 
 export interface CreatePeerChallengeRequest {
@@ -312,23 +337,43 @@ export interface CreatePeerChallengeRequest {
   groupName: string;
   creatorId: string;
   members: string[];
-  challengeType: string;
+  challengeType: ChallengeType;
   startDate: string;
   endDate: string;
 }
 
 export interface UpdatePeerChallengeRequest {
   members?: string[];
+  groupName?: string;
+  challengeType?: ChallengeType;
+  startDate?: string;
+  endDate?: string;
 }
 
 // ==================== Reminders ====================
+export type ReminderType = "hydration" | "exercise" | "work_session" | "smoking_avoidance";
+
 export interface ReminderSetting {
-  type: "hydration" | "exercise" | "work_session" | "smoking_avoidance";
+  type: ReminderType;
   enabled: boolean;
 }
 
-export interface ReminderSchedule {
+export interface ReminderScheduleResponse {
   reminders: ReminderSetting[];
+}
+
+export interface UpdateReminderRequest {
+  reminderType: ReminderType;
+  enabled: boolean;
+}
+
+export interface UpdateReminderResponse {
+  reminderType: ReminderType;
+  enabled: boolean;
+}
+
+export interface TestReminderResponse {
+  type: ReminderType;
 }
 
 // ==================== API Response Wrapper ====================

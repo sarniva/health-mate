@@ -11,10 +11,11 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
+import type { Href } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/services/auth";
-import { remindersApi, authApi } from "@/services/api";
+import { remindersApi } from "@/services/api";
 import type { ReminderSetting } from "@/services/types";
 import Card from "@/components/Card";
 import Button from "@/components/Button";
@@ -47,13 +48,17 @@ export default function SettingsScreen() {
   }
 
   async function toggleReminder(type: ReminderSetting["type"]) {
+    const current = reminders.find((r) => r.type === type);
+    if (!current) return;
+
+    const newEnabled = !current.enabled;
     const updated = reminders.map((r) =>
-      r.type === type ? { ...r, enabled: !r.enabled } : r
+      r.type === type ? { ...r, enabled: newEnabled } : r
     );
     setReminders(updated);
 
     try {
-      await remindersApi.updateSchedule({ reminders: updated });
+      await remindersApi.updateReminder({ reminderType: type, enabled: newEnabled });
     } catch {
       // Revert on failure
       setReminders(reminders);
@@ -121,16 +126,28 @@ export default function SettingsScreen() {
               </Text>
               <Text className="text-slate-400 text-sm">{user?.email}</Text>
             </View>
-            <TouchableOpacity className="p-2">
+            <TouchableOpacity
+              className="p-2"
+              onPress={() => router.push("/edit-profile" as Href)}
+            >
               <Ionicons name="create-outline" size={22} color="#94A3B8" />
             </TouchableOpacity>
           </View>
         </Card>
 
         {/* Notifications section */}
-        <Text className="text-white text-lg font-bold mb-3">
-          Notifications
-        </Text>
+        <View className="flex-row items-center justify-between mb-3">
+          <Text className="text-white text-lg font-bold">Notifications</Text>
+          <TouchableOpacity
+            className="flex-row items-center"
+            onPress={() => router.push("/reminders" as Href)}
+          >
+            <Text className="text-emerald-400 text-sm font-medium mr-1">
+              Manage
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color="#10B981" />
+          </TouchableOpacity>
+        </View>
         <Card className="mb-6">
           {reminders.map((reminder, index) => {
             const config = reminderLabels[reminder.type];

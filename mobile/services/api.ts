@@ -37,9 +37,15 @@ import type {
   StreakResponse,
   LeaderboardResponse,
   PeerChallenge,
+  PeerChallengeListResponse,
+  PeerChallengeDetailsResponse,
   CreatePeerChallengeRequest,
   UpdatePeerChallengeRequest,
-  ReminderSchedule,
+  ReminderScheduleResponse,
+  UpdateReminderRequest,
+  UpdateReminderResponse,
+  TestReminderResponse,
+  ReminderType,
   PaginatedParams,
   AuthTokens,
 } from "./types";
@@ -353,17 +359,29 @@ export const peerChallengesApi = {
   },
 
   list() {
-    return request<ApiResponse<PeerChallenge[]>>("/peer-challenges");
+    return request<ApiResponse<PeerChallengeListResponse>>("/peer-challenges");
   },
 
   get(id: string) {
-    return request<ApiResponse<PeerChallenge>>(`/peer-challenges/${id}`);
+    return request<ApiResponse<PeerChallengeDetailsResponse>>(`/peer-challenges/${id}`);
   },
 
   update(id: string, data: UpdatePeerChallengeRequest) {
     return request<ApiResponse<PeerChallenge>>(`/peer-challenges/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    });
+  },
+
+  join(id: string) {
+    return request<ApiResponse<PeerChallenge>>(`/peer-challenges/${id}/join`, {
+      method: "POST",
+    });
+  },
+
+  leave(id: string) {
+    return request<ApiResponse<Record<string, never>>>(`/peer-challenges/${id}/leave`, {
+      method: "POST",
     });
   },
 
@@ -377,18 +395,18 @@ export const peerChallengesApi = {
 // ==================== Reminders API ====================
 export const remindersApi = {
   getSchedule() {
-    return request<ApiResponse<ReminderSchedule>>("/reminders/schedule");
+    return request<ApiResponse<ReminderScheduleResponse>>("/reminders/schedule");
   },
 
-  updateSchedule(data: ReminderSchedule) {
-    return request<ApiResponse<ReminderSchedule>>("/reminders/schedule", {
+  updateReminder(data: UpdateReminderRequest) {
+    return request<ApiResponse<UpdateReminderResponse>>("/reminders/schedule", {
       method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
-  testHydration() {
-    return request<ApiResponse<void>>("/reminders/test/hydration", {
+  sendTest(type: ReminderType) {
+    return request<ApiResponse<TestReminderResponse>>(`/reminders/test/${type}`, {
       method: "POST",
     });
   },
