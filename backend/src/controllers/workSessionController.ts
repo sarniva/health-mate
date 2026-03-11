@@ -12,9 +12,9 @@ import { scheduleWorkSessionReminders } from "../utils/reminderEngine";
 
 class WorkSessionController {
   /**
-   * Start new work session
-   * POST /api/v1/work-sessions
-   */
+    * Start new work session
+    * POST /api/v1/work-sessions
+    */
   startSession = asyncHandler(
     async (req: Request, res: Response) => {
       const userId = req.userId!;
@@ -24,7 +24,7 @@ class WorkSessionController {
       const session = new WorkSession({
         userId,
         duration,
-        workDuration,
+        workDuration: workDuration || duration, // Default to duration if not provided
         breaksScheduled,
         notes,
         isActive: true,

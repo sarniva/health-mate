@@ -27,9 +27,9 @@ class ActivityController {
 
       const log = new HydrationLog({
         userId,
-        date,
+        date: date || new Date(),
         amount,
-        time,
+        time: time || new Date(),
         notes,
       });
 
@@ -44,8 +44,8 @@ class ActivityController {
           $match: {
             userId,
             date: {
-              $gte: new Date(new Date(date).setHours(0, 0, 0, 0)),
-              $lt: new Date(new Date(date).setHours(23, 59, 59, 999)),
+              $gte: new Date(new Date(date || new Date()).setHours(0, 0, 0, 0)),
+              $lt: new Date(new Date(date || new Date()).setHours(23, 59, 59, 999)),
             },
           },
         },
@@ -144,7 +144,7 @@ class ActivityController {
 
       const exercise = new Exercise({
         userId,
-        date,
+        date: date || new Date(),
         exerciseType,
         duration,
         intensity,
@@ -241,10 +241,10 @@ class ActivityController {
 
       const log = new BreakLog({
         userId,
-        sessionId,
+        sessionId: sessionId || undefined,
         breakType,
         duration,
-        date,
+        date: date || new Date(),
         notes,
       });
 

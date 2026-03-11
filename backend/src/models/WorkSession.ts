@@ -75,16 +75,18 @@ export const WorkSession = mongoose.model("WorkSession", WorkSessionSchema);
 
 /**
  * Zod validation schema for WorkSession creation
+ * Note: userId is optional (extracted from JWT), workDuration defaults to duration if not provided
  */
 export const CreateWorkSessionSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
-  sessionDate: z.date().optional(),
+  userId: z.string().min(1, "User ID is required").optional(),
+  sessionDate: z.coerce.date().optional(),
   duration: z
     .number()
     .min(1, "Session duration must be at least 1 minute"),
   workDuration: z
     .number()
-    .min(1, "Work duration must be at least 1 minute"),
+    .min(1, "Work duration must be at least 1 minute")
+    .optional(),
   breaksTaken: z.number().nonnegative().optional(),
   breaksScheduled: z.number().nonnegative().optional(),
   hydrationRemindersReceived: z.number().nonnegative().optional(),

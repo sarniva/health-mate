@@ -49,10 +49,11 @@ export const HydrationLog = mongoose.model(
 
 /**
  * Zod validation schema for HydrationLog creation
+ * Note: userId is optional (extracted from JWT)
  */
 export const CreateHydrationLogSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
-  date: z.coerce.date(),
+  userId: z.string().min(1, "User ID is required").optional(),
+  date: z.coerce.date().optional(),
   amount: z
     .number()
     .min(1, "Amount must be at least 1 ml")
@@ -117,10 +118,11 @@ export const BreakLog = mongoose.model("BreakLog", BreakLogSchema);
 
 /**
  * Zod validation schema for BreakLog creation
+ * Note: userId is optional (extracted from JWT), sessionId can be optional for manual breaks
  */
 export const CreateBreakLogSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
-  sessionId: z.string().min(1, "Session ID is required"),
+  userId: z.string().min(1, "User ID is required").optional(),
+  sessionId: z.string().min(1, "Session ID is required").optional(),
   breakType: z.enum([
      "stretching",
      "breathing",
@@ -190,10 +192,11 @@ export const SmokingLog = mongoose.model("SmokingLog", SmokingLogSchema);
 
 /**
  * Zod validation schema for SmokingLog creation
+ * Note: userId is optional (extracted from JWT)
  */
 export const CreateSmokingLogSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
-  date: z.coerce.date(),
+  userId: z.string().min(1, "User ID is required").optional(),
+  date: z.coerce.date().optional(),
   cigarettesSmoked: z
     .number()
     .min(0, "Cigarettes smoked must be non-negative")
@@ -286,7 +289,7 @@ export const Exercise = mongoose.model("Exercise", ExerciseSchema);
  * Zod validation schema for Exercise creation
  */
 export const CreateExerciseSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
+  userId: z.string().min(1, "User ID is required").optional(),
   date: z.coerce.date().optional(),
   exerciseType: z.enum([
     "running",
