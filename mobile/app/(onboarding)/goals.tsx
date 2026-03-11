@@ -2,7 +2,7 @@ import { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { healthProfileApi, ApiError } from "@/services/api";
+import { healthProfileApi } from "@/services/api";
 import { useAuth } from "@/services/auth";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
@@ -99,7 +99,8 @@ export default function GoalsScreen() {
       router.replace("/(tabs)" as Href);
     } catch (error: unknown) {
       // 409 = profile already exists — not an error, just navigate
-      if (error instanceof ApiError && error.status === 409) {
+      const status = (error as { status?: number })?.status;
+      if (status === 409) {
         router.replace("/(tabs)" as Href);
         return;
       }
