@@ -4,16 +4,27 @@ import { z } from "zod";
 export interface IAchievement extends Document {
   userId: string;
   badgeType:
-    | "first_session"
-    | "first_week"
-    | "hydration_master"
-    | "break_taker"
+    | "first_steps"
+    | "kickstarter"
+    | "week_warrior"
+    | "hydration_hero"
+    | "water_master"
+    | "break_master"
+    | "perfect_session"
     | "exercise_enthusiast"
+    | "fitness_fanatic"
     | "smoke_free_week"
     | "smoke_free_month"
+    | "smoking_slayer"
+    | "streak_keeper"
     | "perfect_week"
-    | "100_sessions"
-    | "leaderboard_top_10";
+    | "century_club"
+    | "consistency_king"
+    | "rising_star"
+    | "local_champion"
+    | "golden_guardian"
+    | "platinum_elite"
+    | "leaderboard_legend";
   title: string;
   description: string;
   points: number;
@@ -32,16 +43,27 @@ const AchievementSchema = new Schema<IAchievement>(
     badgeType: {
       type: String,
       enum: [
-        "first_session",
-        "first_week",
-        "hydration_master",
-        "break_taker",
+        "first_steps",
+        "kickstarter",
+        "week_warrior",
+        "hydration_hero",
+        "water_master",
+        "break_master",
+        "perfect_session",
         "exercise_enthusiast",
+        "fitness_fanatic",
         "smoke_free_week",
         "smoke_free_month",
+        "smoking_slayer",
+        "streak_keeper",
         "perfect_week",
-        "100_sessions",
-        "leaderboard_top_10",
+        "century_club",
+        "consistency_king",
+        "rising_star",
+        "local_champion",
+        "golden_guardian",
+        "platinum_elite",
+        "leaderboard_legend",
       ],
       required: true,
       index: true,
@@ -78,16 +100,27 @@ export const Achievement = mongoose.model("Achievement", AchievementSchema);
 export const CreateAchievementSchema = z.object({
   userId: z.string().min(1, "User ID is required"),
   badgeType: z.enum([
-    "first_session",
-    "first_week",
-    "hydration_master",
-    "break_taker",
+    "first_steps",
+    "kickstarter",
+    "week_warrior",
+    "hydration_hero",
+    "water_master",
+    "break_master",
+    "perfect_session",
     "exercise_enthusiast",
+    "fitness_fanatic",
     "smoke_free_week",
     "smoke_free_month",
+    "smoking_slayer",
+    "streak_keeper",
     "perfect_week",
-    "100_sessions",
-    "leaderboard_top_10",
+    "century_club",
+    "consistency_king",
+    "rising_star",
+    "local_champion",
+    "golden_guardian",
+    "platinum_elite",
+    "leaderboard_legend",
   ]),
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Description is required"),

@@ -84,9 +84,10 @@ export const HealthProfile = mongoose.model(
 
 /**
  * Zod validation schema for HealthProfile creation
+ * Note: userId is optional and will be injected from JWT token by controller
  */
 export const CreateHealthProfileSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
+  userId: z.string().min(1, "User ID is required").optional(),
   height: z
     .number()
     .min(50, "Height must be at least 50 cm")
