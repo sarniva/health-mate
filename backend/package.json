@@ -9,14 +9,21 @@
     "build": "bun install"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/bun": "latest",
-    "@types/express": "^5.0.6"
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.7"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "bcrypt": "^5.1.1",
     "express": "^5.2.1",
-    "mongoose": "^9.3.0"
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^9.3.0",
+    "node-schedule": "^2.1.1",
+    "nodemailer": "^8.0.2",
+    "zod": "^4.3.6"
   }
 }
