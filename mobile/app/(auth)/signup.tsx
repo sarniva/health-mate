@@ -13,18 +13,29 @@ import { useAuth } from "@/services/auth";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 
-export default function LoginScreen() {
-  const { login } = useAuth();
+export default function SignupScreen() {
+  const { signup } = useAuth();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {}
-  );
+  const [errors, setErrors] = useState<{
+    name?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
 
   function validate(): boolean {
-    const newErrors: { email?: string; password?: string } = {};
+    const newErrors: typeof errors = {};
+
+    if (!name.trim()) {
+      newErrors.name = "Name is required";
+    } else if (name.trim().length < 2) {
+      newErrors.name = "Name must be at least 2 characters";
+    }
 
     if (!email.trim()) {
       newErrors.email = "Email is required";
@@ -38,20 +49,34 @@ export default function LoginScreen() {
       newErrors.password = "Password must be at least 6 characters";
     }
 
+    if (!confirmPassword) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
 
-  async function handleLogin() {
+  function clearError(field: keyof typeof errors) {
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
+  }
+
+  async function handleSignup() {
     if (!validate()) return;
 
     setIsLoading(true);
     try {
-      await login({ email: email.trim().toLowerCase(), password });
-      router.replace("/(tabs)" as Href);
+      await signup({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      router.replace("/(onboarding)/welcome" as Href);
     } catch (error: unknown) {
       const message =
-        error instanceof Error ? error.message : "Invalid email or password";
+        error instanceof Error ? error.message : "Signup failed. Try again.";
       setErrors({ email: message });
     } finally {
       setIsLoading(false);
@@ -69,20 +94,33 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* Branding */}
-        <View className="items-center mb-12">
+        <View className="items-center mb-10">
           <View className="w-20 h-20 rounded-2xl bg-emerald-500 items-center justify-center mb-4">
             <Ionicons name="heart-half" size={40} color="#0F172A" />
           </View>
           <Text className="text-3xl font-bold text-white tracking-tight">
-            HealthMate
+            Create Account
           </Text>
           <Text className="text-slate-400 text-base mt-2">
-            Your daily wellness companion
+            Start your wellness journey
           </Text>
         </View>
 
         {/* Form */}
-        <View className="gap-5">
+        <View className="gap-4">
+          <Input
+            label="Full Name"
+            icon="person-outline"
+            placeholder="John Doe"
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              clearError("name");
+            }}
+            autoCapitalize="words"
+            error={errors.name}
+          />
+
           <Input
             label="Email"
             icon="mail-outline"
@@ -90,8 +128,7 @@ export default function LoginScreen() {
             value={email}
             onChangeText={(text) => {
               setEmail(text);
-              if (errors.email)
-                setErrors((prev) => ({ ...prev, email: undefined }));
+              clearError("email");
             }}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -102,12 +139,11 @@ export default function LoginScreen() {
           <Input
             label="Password"
             icon="lock-closed-outline"
-            placeholder="Enter your password"
+            placeholder="Min. 6 characters"
             value={password}
             onChangeText={(text) => {
               setPassword(text);
-              if (errors.password)
-                setErrors((prev) => ({ ...prev, password: undefined }));
+              clearError("password");
             }}
             secureTextEntry={!showPassword}
             error={errors.password}
@@ -125,35 +161,35 @@ export default function LoginScreen() {
             }
           />
 
-          {/* Forgot password */}
-          <TouchableOpacity
-            className="self-end"
-            onPress={() => router.push("/(auth)/forgot-password" as Href)}
-          >
-            <Text className="text-emerald-400 text-sm font-medium">
-              Forgot password?
-            </Text>
-          </TouchableOpacity>
+          <Input
+            label="Confirm Password"
+            icon="lock-closed-outline"
+            placeholder="Re-enter your password"
+            value={confirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              clearError("confirmPassword");
+            }}
+            secureTextEntry={!showPassword}
+            error={errors.confirmPassword}
+          />
 
-          {/* Login button */}
           <Button
-            title="Sign In"
-            onPress={handleLogin}
+            title="Create Account"
+            onPress={handleSignup}
             isLoading={isLoading}
-            className="mt-2"
+            className="mt-3"
           />
         </View>
 
-        {/* Sign up link */}
-        <View className="flex-row justify-center mt-10">
+        {/* Login link */}
+        <View className="flex-row justify-center mt-8">
           <Text className="text-slate-400 text-sm">
-            Don't have an account?{" "}
+            Already have an account?{" "}
           </Text>
-          <TouchableOpacity
-            onPress={() => router.push("/(auth)/signup" as Href)}
-          >
+          <TouchableOpacity onPress={() => router.back()}>
             <Text className="text-emerald-400 text-sm font-bold">
-              Sign Up
+              Sign In
             </Text>
           </TouchableOpacity>
         </View>
