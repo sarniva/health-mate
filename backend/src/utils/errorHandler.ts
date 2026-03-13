@@ -10,7 +10,7 @@ export class APIError extends Error {
   constructor(
     message: string,
     statusCode: number = 500,
-    isOperational: boolean = true
+    isOperational: boolean = true,
   ) {
     super(message);
     this.statusCode = statusCode;
@@ -79,7 +79,7 @@ export function sendErrorResponse(
   res: Response,
   statusCode: number,
   message: string,
-  errors?: Record<string, string[]>
+  errors?: Record<string, string[]>,
 ): void {
   res.status(statusCode).json({
     success: false,
@@ -97,13 +97,22 @@ export function sendSuccessResponse(
   res: Response,
   statusCode: number,
   data?: unknown,
-  message: string = "Success"
+  message: string = "Success",
 ): void {
-  res.status(statusCode).json({
+  const payload: {
+    success: boolean;
+    message: string;
+    data?: unknown;
+  } = {
     success: true,
     message,
-    ...(data && { data }),
-  });
+  };
+
+  if (data !== undefined) {
+    payload.data = data;
+  }
+
+  res.status(statusCode).json(payload);
 }
 
 /**
@@ -112,7 +121,7 @@ export function sendSuccessResponse(
  * @returns Express middleware that catches errors
  */
 export function asyncHandler(
-  fn: (req: Request, res: Response) => Promise<any>
+  fn: (req: Request, res: Response) => Promise<any>,
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res)).catch(next);

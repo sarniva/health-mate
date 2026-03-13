@@ -89,7 +89,7 @@ const AchievementSchema = new Schema<IAchievement>(
       default: Date.now,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Achievement = mongoose.model("Achievement", AchievementSchema);
@@ -169,7 +169,7 @@ const StreakSchema = new Schema<IStreak>(
       default: Date.now,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const Streak = mongoose.model("Streak", StreakSchema);
@@ -233,13 +233,9 @@ export const ACHIEVEMENT_DEFINITIONS = {
   },
   perfect_week: {
     title: "Perfect Week",
-    description: "Complete all daily goals (hydration, breaks, exercise) for 7 days",
+    description:
+      "Complete all daily goals (hydration, breaks, exercise) for 7 days",
     points: 200,
-  },
-  century_club: {
-    title: "Century Club",
-    description: "Complete 100 work sessions",
-    points: 300,
   },
   century_club: {
     id: "century_club",

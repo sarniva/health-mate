@@ -25,7 +25,7 @@ const activeReminders = new Map<string, schedule.Job[]>();
  */
 export function scheduleWorkSessionReminders(
   userId: string,
-  sessionId: string
+  sessionId: string,
 ): schedule.Job {
   const job = schedule.scheduleJob(`*/25 * * * *`, () => {
     sendReminder({
@@ -56,16 +56,26 @@ export function scheduleHydrationReminders(userId: string): schedule.Job[] {
   const endHour = REMINDER_CONFIG.HYDRATION.endHour;
   const intervalMinutes = REMINDER_CONFIG.HYDRATION.intervalMinutes;
 
-  for (let hour = startHour; hour < endHour; hour += Math.floor(intervalMinutes / 60)) {
+  for (
+    let hour = startHour;
+    hour < endHour;
+    hour += Math.floor(intervalMinutes / 60)
+  ) {
     const minute = (hour % 1) * 60;
     const cronExpression = `0 ${hour} * * *`;
 
     const job = schedule.scheduleJob(cronExpression, () => {
-      const messageIndex = Math.floor(Math.random() * REMINDER_CONFIG.HYDRATION.messages.length);
+      const messageIndex = Math.floor(
+        Math.random() * REMINDER_CONFIG.HYDRATION.messages.length,
+      );
+      const message =
+        REMINDER_CONFIG.HYDRATION.messages[messageIndex] ||
+        REMINDER_CONFIG.HYDRATION.messages[0] ||
+        "Remember to drink water";
       sendReminder({
         userId,
         type: "hydration",
-        message: REMINDER_CONFIG.HYDRATION.messages[messageIndex],
+        message,
       });
     });
 
@@ -120,10 +130,14 @@ export function scheduleSmokingReminders(userId: string): schedule.Job[] {
     const cronExpression = `0 ${hour} * * *`;
 
     const job = schedule.scheduleJob(cronExpression, () => {
+      const message =
+        REMINDER_CONFIG.SMOKING_AVOIDANCE.messages[index] ||
+        REMINDER_CONFIG.SMOKING_AVOIDANCE.messages[0] ||
+        "Stay strong today";
       sendReminder({
         userId,
         type: "smoking_avoidance",
-        message: REMINDER_CONFIG.SMOKING_AVOIDANCE.messages[index],
+        message,
       });
     });
 
@@ -147,7 +161,9 @@ export async function sendReminder(reminder: {
   message: string;
 }): Promise<void> {
   try {
-    console.log(`[REMINDER] ${reminder.type.toUpperCase()} to user ${reminder.userId}: ${reminder.message}`);
+    console.log(
+      `[REMINDER] ${reminder.type.toUpperCase()} to user ${reminder.userId}: ${reminder.message}`,
+    );
 
     // In production, implement:
     // 1. Send push notification via mobile service
@@ -167,7 +183,7 @@ export async function sendReminder(reminder: {
  */
 export function cancelUserReminders(userId: string): void {
   const keys = Array.from(activeReminders.keys()).filter((key) =>
-    key.startsWith(userId)
+    key.startsWith(userId),
   );
 
   keys.forEach((key) => {
@@ -210,7 +226,7 @@ export function setupUserReminders(userId: string, isSmoker: boolean): void {
 export function getUserActiveReminders(userId: string): string[] {
   const active: string[] = [];
   const keys = Array.from(activeReminders.keys()).filter((key) =>
-    key.startsWith(userId)
+    key.startsWith(userId),
   );
 
   keys.forEach((key) => {
@@ -230,7 +246,7 @@ export function getUserActiveReminders(userId: string): string[] {
 export function updateReminderPreference(
   userId: string,
   reminderType: "work_session" | "hydration" | "exercise" | "smoking_avoidance",
-  enabled: boolean
+  enabled: boolean,
 ): void {
   const key = `${userId}-${reminderType}`;
 
@@ -258,13 +274,15 @@ export function updateReminderPreference(
  */
 export async function sendTestReminder(
   userId: string,
-  reminderType: "work_session" | "hydration" | "exercise" | "smoking_avoidance"
+  reminderType: "work_session" | "hydration" | "exercise" | "smoking_avoidance",
 ): Promise<void> {
   const messages: Record<string, string> = {
     work_session: REMINDER_CONFIG.WORK_SESSION.message,
-    hydration: REMINDER_CONFIG.HYDRATION.messages[0],
+    hydration:
+      REMINDER_CONFIG.HYDRATION.messages[0] || "Remember to drink water",
     exercise: REMINDER_CONFIG.EXERCISE.message,
-    smoking_avoidance: REMINDER_CONFIG.SMOKING_AVOIDANCE.messages[0],
+    smoking_avoidance:
+      REMINDER_CONFIG.SMOKING_AVOIDANCE.messages[0] || "Stay strong today",
   };
 
   await sendReminder({

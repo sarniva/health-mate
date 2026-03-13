@@ -1,8 +1,15 @@
-import jwt, { type JwtPayload } from "jsonwebtoken";
+import jwt, {
+  type JwtPayload,
+  type SignOptions,
+  type Secret,
+} from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-key-change-in-production";
-const JWT_EXPIRE = process.env.JWT_EXPIRE || "7d";
-const REFRESH_TOKEN_EXPIRE = process.env.REFRESH_TOKEN_EXPIRE || "30d";
+const JWT_SECRET: Secret =
+  process.env.JWT_SECRET || "your-super-secret-key-change-in-production";
+const JWT_EXPIRE: SignOptions["expiresIn"] =
+  (process.env.JWT_EXPIRE as SignOptions["expiresIn"]) || "7d";
+const REFRESH_TOKEN_EXPIRE: SignOptions["expiresIn"] =
+  (process.env.REFRESH_TOKEN_EXPIRE as SignOptions["expiresIn"]) || "30d";
 
 export interface TokenPayload extends JwtPayload {
   userId: string;
@@ -30,7 +37,10 @@ export function generateRefreshToken(userId: string): string {
 /**
  * Generate both tokens
  */
-export function generateTokens(userId: string, email: string): { accessToken: string; refreshToken: string } {
+export function generateTokens(
+  userId: string,
+  email: string,
+): { accessToken: string; refreshToken: string } {
   return {
     accessToken: generateAccessToken(userId, email),
     refreshToken: generateRefreshToken(userId),
@@ -52,7 +62,9 @@ export function verifyToken(token: string): TokenPayload | null {
 /**
  * Extract token from Authorization header
  */
-export function extractTokenFromHeader(authHeader: string | undefined): string | null {
+export function extractTokenFromHeader(
+  authHeader: string | undefined,
+): string | null {
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return null;
   }

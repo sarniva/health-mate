@@ -13,14 +13,14 @@ export function errorMiddleware(
   error: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void {
   console.error("Error:", error);
 
   // Handle Zod validation errors
   if (error instanceof ZodError) {
     const errors: Record<string, string[]> = {};
-    error.errors.forEach((err) => {
+    error.issues.forEach((err) => {
       const path = err.path.join(".");
       if (!errors[path]) {
         errors[path] = [];
@@ -72,7 +72,7 @@ export function errorMiddleware(
     500,
     process.env.NODE_ENV === "production"
       ? "Internal server error"
-      : error.message
+      : error.message,
   );
 }
 
@@ -82,7 +82,7 @@ export function errorMiddleware(
 export function notFoundMiddleware(
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void {
   sendErrorResponse(res, 404, `Route ${req.originalUrl} not found`);
 }

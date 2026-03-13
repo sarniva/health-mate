@@ -1,5 +1,5 @@
 import { type Request, type Response, type NextFunction } from "express";
-import { ZodSchema } from "zod";
+import { ZodError, type ZodSchema } from "zod";
 import { ValidationError } from "../utils/errorHandler";
 
 /**
@@ -8,9 +8,9 @@ import { ValidationError } from "../utils/errorHandler";
 declare global {
   namespace Express {
     interface Request {
-      validatedBody?: Record<string, any>;
-      validatedQuery?: Record<string, any>;
-      validatedParams?: Record<string, any>;
+      validatedBody?: unknown;
+      validatedQuery?: unknown;
+      validatedParams?: unknown;
     }
   }
 }
@@ -26,10 +26,10 @@ export function validateRequest(schema: ZodSchema) {
       const validated = schema.parse(req.body);
       req.validatedBody = validated;
       next();
-    } catch (error: any) {
-      if (error.errors) {
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
         const errors: Record<string, string[]> = {};
-        error.errors.forEach((err: any) => {
+        error.issues.forEach((err) => {
           const path = err.path.join(".");
           if (!errors[path]) {
             errors[path] = [];
@@ -54,10 +54,10 @@ export function validateQuery(schema: ZodSchema) {
       const validated = schema.parse(req.query);
       req.validatedQuery = validated;
       next();
-    } catch (error: any) {
-      if (error.errors) {
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
         const errors: Record<string, string[]> = {};
-        error.errors.forEach((err: any) => {
+        error.issues.forEach((err) => {
           const path = err.path.join(".");
           if (!errors[path]) {
             errors[path] = [];
@@ -82,10 +82,10 @@ export function validateParams(schema: ZodSchema) {
       const validated = schema.parse(req.params);
       req.validatedParams = validated;
       next();
-    } catch (error: any) {
-      if (error.errors) {
+    } catch (error: unknown) {
+      if (error instanceof ZodError) {
         const errors: Record<string, string[]> = {};
-        error.errors.forEach((err: any) => {
+        error.issues.forEach((err) => {
           const path = err.path.join(".");
           if (!errors[path]) {
             errors[path] = [];

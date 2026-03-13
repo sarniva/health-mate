@@ -3,7 +3,11 @@ import { User, SignupSchema, LoginSchema } from "../models/User";
 import { sendSuccessResponse } from "../utils/errorHandler";
 import { asyncHandler } from "../utils/errorHandler";
 import { generateTokens, verifyToken } from "../utils/jwtUtils";
-import { ConflictError, UnauthorizedError, ValidationError } from "../utils/errorHandler";
+import {
+  ConflictError,
+  UnauthorizedError,
+  ValidationError,
+} from "../utils/errorHandler";
 
 class AuthController {
   /**
@@ -17,7 +21,9 @@ class AuthController {
     const validation = SignupSchema.safeParse({ name, email, password });
     if (!validation.success) {
       throw new ValidationError(
-        validation.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ")
+        validation.error.issues
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+          .join(", "),
       );
     }
 
@@ -37,7 +43,10 @@ class AuthController {
     await user.save();
 
     // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user._id.toString(), user.email);
+    const { accessToken, refreshToken } = generateTokens(
+      user._id.toString(),
+      user.email,
+    );
 
     sendSuccessResponse(
       res,
@@ -51,7 +60,7 @@ class AuthController {
         accessToken,
         refreshToken,
       },
-      "User registered successfully"
+      "User registered successfully",
     );
   });
 
@@ -66,24 +75,33 @@ class AuthController {
     const validation = LoginSchema.safeParse({ email, password });
     if (!validation.success) {
       throw new ValidationError(
-        validation.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join(", ")
+        validation.error.issues
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+          .join(", "),
       );
     }
 
     // Find user and select password field (normally hidden)
-    const user = await User.findOne({ email: validation.data.email }).select("+password");
+    const user = await User.findOne({ email: validation.data.email }).select(
+      "+password",
+    );
     if (!user) {
       throw new UnauthorizedError("Invalid email or password");
     }
 
     // Verify password
-    const isPasswordValid = await user.comparePassword(validation.data.password);
+    const isPasswordValid = await user.comparePassword(
+      validation.data.password,
+    );
     if (!isPasswordValid) {
       throw new UnauthorizedError("Invalid email or password");
     }
 
     // Generate tokens
-    const { accessToken, refreshToken } = generateTokens(user._id.toString(), user.email);
+    const { accessToken, refreshToken } = generateTokens(
+      user._id.toString(),
+      user.email,
+    );
 
     sendSuccessResponse(
       res,
@@ -97,7 +115,7 @@ class AuthController {
         accessToken,
         refreshToken,
       },
-      "Login successful"
+      "Login successful",
     );
   });
 
@@ -134,7 +152,7 @@ class AuthController {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       },
-      "Token refreshed successfully"
+      "Token refreshed successfully",
     );
   });
 
@@ -159,7 +177,7 @@ class AuthController {
         email: user.email,
         avatar: user.avatar,
       },
-      "User profile retrieved"
+      "User profile retrieved",
     );
   });
 
@@ -190,7 +208,7 @@ class AuthController {
         email: user.email,
         avatar: user.avatar,
       },
-      "User profile updated"
+      "User profile updated",
     );
   });
 }

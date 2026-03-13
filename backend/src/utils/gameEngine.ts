@@ -24,7 +24,7 @@ import {
 export async function awardPoints(
   userId: string,
   points: number,
-  source: string
+  source: string,
 ): Promise<any> {
   try {
     let leaderboard = await GlobalLeaderboard.findOne({ userId });
@@ -54,7 +54,7 @@ export async function awardPoints(
 export async function checkAndAwardAchievements(
   userId: string,
   trigger: string,
-  value: number = 0
+  value: number = 0,
 ): Promise<any[]> {
   const unlockedAchievements = [];
 
@@ -73,7 +73,7 @@ export async function checkAndAwardAchievements(
       if (existing) continue;
 
       // Check if requirement is met
-      if (achievement.requirement && value < achievement.requirement) {
+      if ("requirement" in achievement && value < achievement.requirement) {
         continue;
       }
 
@@ -89,7 +89,11 @@ export async function checkAndAwardAchievements(
       await newAchievement.save();
 
       // Award points
-      await awardPoints(userId, achievement.points, `achievement_${achievement.id}`);
+      await awardPoints(
+        userId,
+        achievement.points,
+        `achievement_${achievement.id}`,
+      );
 
       unlockedAchievements.push(newAchievement);
     }
@@ -109,7 +113,7 @@ export async function checkAndAwardAchievements(
  */
 export async function updateStreak(
   userId: string,
-  streakType: "work_sessions" | "hydration" | "exercise" | "smoke_free"
+  streakType: "work_sessions" | "hydration" | "exercise" | "smoke_free",
 ): Promise<any> {
   try {
     let streak = await Streak.findOne({ userId, streakType });
@@ -127,7 +131,7 @@ export async function updateStreak(
       const lastActivity = streak.lastActivityDate;
       const today = new Date();
       const daysDiff = Math.floor(
-        (today.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
+        (today.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24),
       );
 
       if (daysDiff === 1) {
@@ -157,7 +161,11 @@ export async function updateStreak(
 
     const achievementTrigger = streakAchievements[streakType];
     if (achievementTrigger) {
-      await checkAndAwardAchievements(userId, achievementTrigger, streak.currentStreak);
+      await checkAndAwardAchievements(
+        userId,
+        achievementTrigger,
+        streak.currentStreak,
+      );
     }
 
     return streak;
@@ -172,7 +180,9 @@ export async function updateStreak(
  * @param limit - Number of top users to return
  * @returns Top users sorted by points
  */
-export async function getGlobalLeaderboardRankings(limit: number = 100): Promise<any[]> {
+export async function getGlobalLeaderboardRankings(
+  limit: number = 100,
+): Promise<any[]> {
   try {
     const leaderboard = await GlobalLeaderboard.find()
       .sort({ totalPoints: -1 })
@@ -181,8 +191,10 @@ export async function getGlobalLeaderboardRankings(limit: number = 100): Promise
 
     // Update ranks
     for (let i = 0; i < leaderboard.length; i++) {
-      leaderboard[i].rank = i + 1;
-      await leaderboard[i].save();
+      const entry = leaderboard[i];
+      if (!entry) continue;
+      entry.rank = i + 1;
+      await entry.save();
     }
 
     return leaderboard;
@@ -200,7 +212,7 @@ export async function getGlobalLeaderboardRankings(limit: number = 100): Promise
  */
 export async function getLeaderboardByTier(
   tier: "bronze" | "silver" | "gold" | "platinum",
-  limit: number = 50
+  limit: number = 50,
 ): Promise<any[]> {
   try {
     return await GlobalLeaderboard.find({ tier })
@@ -291,7 +303,7 @@ export async function getAvailableAchievements(userId: string): Promise<any[]> {
     const unlockedIds = unlocked.map((a) => a.badgeType);
 
     const available = Object.values(ACHIEVEMENTS_CONFIG).filter(
-      (achievement) => !unlockedIds.includes(achievement.id)
+      (achievement) => !unlockedIds.includes(achievement.id),
     );
 
     return available;
@@ -321,9 +333,7 @@ export async function getUserTotalPoints(userId: string): Promise<number> {
  * @param userId - User ID
  * @returns Array of user's streaks
  */
-export async function getUserStreaks(
-  userId: string
-): Promise<Array<any>> {
+export async function getUserStreaks(userId: string): Promise<Array<any>> {
   try {
     return await Streak.find({ userId }).exec();
   } catch (error) {
@@ -338,7 +348,7 @@ export async function getUserStreaks(
  * @returns Points to award
  */
 export function calculateExercisePoints(
-  intensity: "low" | "medium" | "high"
+  intensity: "low" | "medium" | "high",
 ): number {
   switch (intensity) {
     case "low":
