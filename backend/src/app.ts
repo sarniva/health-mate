@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import morgan from "morgan";
 import {
   errorMiddleware,
   notFoundMiddleware,
@@ -32,6 +33,7 @@ const corsOptions = {
 
 app.use(helmet());
 app.use(cors(corsOptions));
+app.use(morgan("dev"));
 
 // Body parser middleware
 app.use(express.json({ limit: "10mb" }));
