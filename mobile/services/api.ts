@@ -1,10 +1,9 @@
 /**
  * API Client for HealthMate backend
- * Base URL: http://localhost:3000/api/v1
- *
- * Uses in-memory token store (tokens reset on app restart).
- * Swap to expo-secure-store for production builds.
+ * Base URL is driven by EXPO_PUBLIC_API_URL when provided.
+ * Falls back to localhost/10.0.2.2 in development.
  */
+import { Platform } from "react-native";
 import type {
   ApiResponse,
   LoginRequest,
@@ -49,43 +48,57 @@ import type {
   PaginatedParams,
   AuthTokens,
 } from "./types";
+import {
+  clearAuthTokens,
+  readAccessToken,
+  readRefreshToken,
+  saveAuthTokens,
+} from "./secureStorage";
 
-const BASE_URL = "http://10.10.10.180:3000/api/v1";
+const API_PORT = "3000";
+const API_PREFIX = "/api/v1";
 
-/**
- * In-memory token store
- * Works reliably in Expo Go without native modules.
- */
-let _accessToken: string | null = null;
-let _refreshToken: string | null = null;
+function trimTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url.slice(0, -1) : url;
+}
+
+function resolveBaseUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (envUrl) {
+    return trimTrailingSlash(envUrl);
+  }
+
+  const host = Platform.OS === "android" ? "10.0.2.2" : "localhost";
+  return `http://${host}:${API_PORT}${API_PREFIX}`;
+}
+
+const BASE_URL = resolveBaseUrl();
 
 /** Store tokens */
 export async function storeTokens(tokens: AuthTokens): Promise<void> {
-  _accessToken = tokens.accessToken;
-  _refreshToken = tokens.refreshToken;
+  await saveAuthTokens(tokens);
 }
 
 /** Get access token */
 export async function getAccessToken(): Promise<string | null> {
-  return _accessToken;
+  return readAccessToken();
 }
 
 /** Get refresh token */
 export async function getRefreshToken(): Promise<string | null> {
-  return _refreshToken;
+  return readRefreshToken();
 }
 
 /** Clear tokens on logout */
 export async function clearTokens(): Promise<void> {
-  _accessToken = null;
-  _refreshToken = null;
+  await clearAuthTokens();
 }
 
 /** Core fetch wrapper with auth + token refresh */
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  requiresAuth = true
+  requiresAuth = true,
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -122,7 +135,7 @@ async function request<T>(
     throw new ApiError(
       errorBody.message || `Request failed with status ${response.status}`,
       response.status,
-      errorBody
+      errorBody,
     );
   }
 
@@ -144,9 +157,14 @@ async function attemptRefresh(): Promise<boolean> {
     if (!response.ok) return false;
 
     const data = await response.json();
+    const accessToken = data.data?.accessToken || data.accessToken;
+    const newRefreshToken =
+      data.data?.refreshToken || data.refreshToken || refreshToken;
+    if (!accessToken) return false;
+
     await storeTokens({
-      accessToken: data.accessToken || data.data?.accessToken,
-      refreshToken: data.refreshToken || data.data?.refreshToken,
+      accessToken,
+      refreshToken: newRefreshToken,
     });
     return true;
   } catch {
@@ -170,17 +188,25 @@ export class ApiError extends Error {
 // ==================== Auth API ====================
 export const authApi = {
   signup(data: SignupRequest) {
-    return request<ApiResponse<LoginResponse>>("/auth/signup", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }, false);
+    return request<ApiResponse<LoginResponse>>(
+      "/auth/signup",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+      false,
+    );
   },
 
   login(data: LoginRequest) {
-    return request<ApiResponse<LoginResponse>>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }, false);
+    return request<ApiResponse<LoginResponse>>(
+      "/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+      false,
+    );
   },
 
   getMe() {
@@ -195,10 +221,14 @@ export const authApi = {
   },
 
   refresh(data: RefreshRequest) {
-    return request<ApiResponse<AuthTokens>>("/auth/refresh", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }, false);
+    return request<ApiResponse<AuthTokens>>(
+      "/auth/refresh",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+      false,
+    );
   },
 };
 
@@ -272,7 +302,9 @@ export const activitiesApi = {
     const query = params
       ? `?page=${params.page || 1}&limit=${params.limit || 20}`
       : "";
-    return request<ApiResponse<HydrationListResponse>>(`/activities/hydration${query}`);
+    return request<ApiResponse<HydrationListResponse>>(
+      `/activities/hydration${query}`,
+    );
   },
 
   // --- Exercise ---
@@ -287,7 +319,9 @@ export const activitiesApi = {
     const query = params
       ? `?page=${params.page || 1}&limit=${params.limit || 20}`
       : "";
-    return request<ApiResponse<ExerciseListResponse>>(`/activities/exercise${query}`);
+    return request<ApiResponse<ExerciseListResponse>>(
+      `/activities/exercise${query}`,
+    );
   },
 
   // --- Breaks ---
@@ -302,7 +336,9 @@ export const activitiesApi = {
     const query = params
       ? `?page=${params.page || 1}&limit=${params.limit || 20}`
       : "";
-    return request<ApiResponse<BreakListResponse>>(`/activities/breaks${query}`);
+    return request<ApiResponse<BreakListResponse>>(
+      `/activities/breaks${query}`,
+    );
   },
 
   // --- Smoking ---
@@ -321,7 +357,9 @@ export const gamificationApi = {
   },
 
   getAchievements() {
-    return request<ApiResponse<AchievementsResponse>>("/gamification/achievements");
+    return request<ApiResponse<AchievementsResponse>>(
+      "/gamification/achievements",
+    );
   },
 
   getStreaks() {
@@ -335,17 +373,23 @@ export const leaderboardApi = {
     const query = params
       ? `?page=${params.page || 1}&limit=${params.limit || 20}`
       : "";
-    return request<ApiResponse<LeaderboardResponse>>(`/leaderboards/global${query}`);
+    return request<ApiResponse<LeaderboardResponse>>(
+      `/leaderboards/global${query}`,
+    );
   },
 
   getByTier(tier: string, params?: PaginatedParams) {
     const query = `?tier=${tier}&page=${params?.page || 1}&limit=${params?.limit || 20}`;
-    return request<ApiResponse<LeaderboardResponse>>(`/leaderboards/tier${query}`);
+    return request<ApiResponse<LeaderboardResponse>>(
+      `/leaderboards/tier${query}`,
+    );
   },
 
   getLocal(groupId: string, params?: PaginatedParams) {
     const query = `?groupId=${groupId}&page=${params?.page || 1}&limit=${params?.limit || 20}`;
-    return request<ApiResponse<LeaderboardResponse>>(`/leaderboards/local${query}`);
+    return request<ApiResponse<LeaderboardResponse>>(
+      `/leaderboards/local${query}`,
+    );
   },
 };
 
@@ -363,7 +407,9 @@ export const peerChallengesApi = {
   },
 
   get(id: string) {
-    return request<ApiResponse<PeerChallengeDetailsResponse>>(`/peer-challenges/${id}`);
+    return request<ApiResponse<PeerChallengeDetailsResponse>>(
+      `/peer-challenges/${id}`,
+    );
   },
 
   update(id: string, data: UpdatePeerChallengeRequest) {
@@ -380,9 +426,12 @@ export const peerChallengesApi = {
   },
 
   leave(id: string) {
-    return request<ApiResponse<Record<string, never>>>(`/peer-challenges/${id}/leave`, {
-      method: "POST",
-    });
+    return request<ApiResponse<Record<string, never>>>(
+      `/peer-challenges/${id}/leave`,
+      {
+        method: "POST",
+      },
+    );
   },
 
   delete(id: string) {
@@ -395,7 +444,9 @@ export const peerChallengesApi = {
 // ==================== Reminders API ====================
 export const remindersApi = {
   getSchedule() {
-    return request<ApiResponse<ReminderScheduleResponse>>("/reminders/schedule");
+    return request<ApiResponse<ReminderScheduleResponse>>(
+      "/reminders/schedule",
+    );
   },
 
   updateReminder(data: UpdateReminderRequest) {
@@ -406,8 +457,11 @@ export const remindersApi = {
   },
 
   sendTest(type: ReminderType) {
-    return request<ApiResponse<TestReminderResponse>>(`/reminders/test/${type}`, {
-      method: "POST",
-    });
+    return request<ApiResponse<TestReminderResponse>>(
+      `/reminders/test/${type}`,
+      {
+        method: "POST",
+      },
+    );
   },
 };
