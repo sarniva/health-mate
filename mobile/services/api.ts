@@ -74,6 +74,22 @@ function resolveBaseUrl(): string {
 
 const BASE_URL = resolveBaseUrl();
 
+type ErrorResponseBody = {
+  message?: string;
+  error?: {
+    message?: string;
+    errors?: Record<string, string[]>;
+  };
+};
+
+function getErrorMessage(errorBody: ErrorResponseBody, status: number): string {
+  return (
+    errorBody.error?.message ||
+    errorBody.message ||
+    `Request failed with status ${status}`
+  );
+}
+
 /** Store tokens */
 export async function storeTokens(tokens: AuthTokens): Promise<void> {
   await saveAuthTokens(tokens);
@@ -100,6 +116,8 @@ async function request<T>(
   options: RequestInit = {},
   requiresAuth = true,
 ): Promise<T> {
+  const method = options.method ?? "GET";
+  const url = `${BASE_URL}${path}`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -112,7 +130,7 @@ async function request<T>(
     }
   }
 
-  let response = await fetch(`${BASE_URL}${path}`, {
+  let response = await fetch(url, {
     ...options,
     headers,
   });
@@ -123,7 +141,7 @@ async function request<T>(
     if (refreshed) {
       const newToken = await getAccessToken();
       headers["Authorization"] = `Bearer ${newToken}`;
-      response = await fetch(`${BASE_URL}${path}`, {
+      response = await fetch(url, {
         ...options,
         headers,
       });
@@ -131,9 +149,21 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
+    const errorBody = (await response
+      .json()
+      .catch(() => ({}) as ErrorResponseBody)) as ErrorResponseBody;
+
+    if (__DEV__) {
+      console.warn("API request failed", {
+        method,
+        url,
+        status: response.status,
+        errorBody,
+      });
+    }
+
     throw new ApiError(
-      errorBody.message || `Request failed with status ${response.status}`,
+      getErrorMessage(errorBody, response.status),
       response.status,
       errorBody,
     );
